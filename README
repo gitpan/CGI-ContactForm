@@ -135,6 +135,9 @@ DEPENDENCIES
     "Flowed.pm" to those directories.
 
 VERSION HISTORY
+    v1.13 (Jul 1, 2003)
+        Code cleanup.
+
     v1.12 (Apr 11, 2003)
         References to the form data for saving memory.
 
