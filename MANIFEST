@@ -10,3 +10,4 @@ Makefile.PL
 MANIFEST
 readme.html
 test.pl
+META.yml                                 Module meta-data (added by MakeMaker)

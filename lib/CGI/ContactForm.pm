@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.21';
-# $Id: ContactForm.pm,v 1.39 2004/03/15 01:11:19 Gunnar Hjalmarsson Exp $
+$VERSION = '1.22';
+# $Id: ContactForm.pm,v 1.41 2004/07/20 02:37:41 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -215,7 +215,6 @@ L<Mail::Sender|Mail::Sender>
 use strict;
 use CGI 'escapeHTML';
 use File::Basename;
-my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use Exporter;
 @ISA = 'Exporter';
@@ -225,9 +224,11 @@ use Exporter;
 BEGIN {
     sub CFdie($) {
         print "Content-type: text/html\n\n<h1>Error</h1>\n<tt>", shift;
-        if ($ENV{MOD_PERL}) {
-            eval "use Apache";
-            Apache::exit() unless $@;
+        if ( $ENV{MOD_PERL} ) {
+            if ( $] < 5.006 ) {
+                require Apache;
+                Apache::exit();
+            }
         }
         exit 1;
     }
@@ -241,17 +242,17 @@ BEGIN {
 
 sub contactform {
     local $^W = 1;  # enables warnings
-    %args = %in = %error = ();
-    arguments(@_);
+    my ($error, $in) = {};
+    my $args = arguments(@_);
     if ($ENV{REQUEST_METHOD} eq 'POST') {
-        formdata();
-        if (formcheck() == 0) {
-            eval { mailsend() };
-            CFdie(escapeHTML(my $msg = $@)) if $@;
+        $in = formdata( $args->{maxsize} );
+        if (formcheck($in, $args->{subject}, $error) == 0) {
+            eval { mailsend($args, $in) };
+            CFdie( escapeHTML(my $msg = $@) ) if $@;
             return;
         }
     }
-    formprint();
+    formprint($args, $in, $error);
 }
 
 sub arguments {
@@ -280,7 +281,7 @@ sub arguments {
         sent_to        => 'The message was sent to %s with a copy to %s.',
         encoding       => 'iso-8859-1',
     );
-    my $error = '';
+    my (%args, $error);
     {
         local $SIG{__WARN__} = sub { die $_[0] };
         eval { %args = (%defaults, @_) };
@@ -312,32 +313,36 @@ Example:
 EXAMPLE
 
     ) if $error;
+
+    \%args;
 }
 
 sub formdata {
-    my $size = ($ENV{CONTENT_LENGTH} or (stat STDIN)[7]);
-    if ($size > 1024 * $args{maxsize}) {
-        CFdie("The message size exceeds the $args{maxsize} KiB limit.\n"
+    my $max = shift;
+    if ($ENV{CONTENT_LENGTH} > 1024 * $max) {
+        CFdie("The message size exceeds the $max KiB limit.\n"
               . '<p><a href="javascript:history.back(1)">Back</a>');
     }
 
-    # create hash of references to the form data
-    my $o = new CGI;
-    $in{$_} = \$o->{$_}[0] for $o->param;
+    # create hash reference to the form data
+    my $in = new CGI->Vars;
 
     # trim whitespace in message headers
     for (qw/name email subject/) {
-        ${$in{$_}} =~ s/^\s+//;
-        ${$in{$_}} =~ s/\s+$//;
-        ${$in{$_}} =~ s/\s+/ /g;
+        $in->{$_} =~ s/^\s+//;
+        $in->{$_} =~ s/\s+$//;
+        $in->{$_} =~ s/\s+/ /g;
     }
+
+    $in;
 }
 
 sub formcheck {
-    for (qw/name message/) { $error{$_} = ' class="error"' unless ${$in{$_}} }
-    $error{subject} = ' class="error"' unless ${$in{subject}} or $args{subject};
-    $error{email} = ' class="error"' if emailsyntax(${$in{email}});
-    %error ? 1 : 0;
+    my ($in, $defaultsubject, $error) = @_;
+    for (qw/name message/) { $error->{$_} = ' class="error"' unless $in->{$_} }
+    $error->{subject} = ' class="error"' unless $in->{subject} or $defaultsubject;
+    $error->{email} = ' class="error"' if emailsyntax( $in->{email} );
+    %$error ? 1 : 0;
 }
 
 sub emailsyntax {
@@ -348,48 +353,50 @@ sub emailsyntax {
 }
 
 sub mailsend {
+    my ($args, $in) = @_;
+
     # Extra headers
-    my @extras = ();
+    my @extras;
     push @extras, "X-Mailer: CGI::ContactForm $VERSION at $ENV{HTTP_HOST}";
     push @extras, "X-Originating-IP: [$ENV{REMOTE_ADDR}]" if $ENV{REMOTE_ADDR};
 
     # Make message format=flowed (RFC 2646)
-    ${$in{message}} = reformat(${$in{message}}, { max_length => 66, opt_length => 66 });
+    $in->{message} = reformat( $in->{message}, { max_length => 66, opt_length => 66 } );
     push @extras, 'MIME-Version: 1.0';
-    push @extras, "Content-type: text/plain; charset=$args{encoding}; format=flowed";
+    push @extras, "Content-type: text/plain; charset=$args->{encoding}; format=flowed";
 
     # Send message
     $Mail::Sender::NO_X_MAILER = 1;
     $Mail::Sender::SITE_HEADERS = join "\r\n", @extras;
-    ref (new Mail::Sender -> MailMsg ({
-        smtp      => $args{smtp},
-        from      => ( $args{bouncetosender} ? ${$in{email}} : $args{recmail} ),
-        fake_from => namefix(${$in{name}}) . " <${$in{email}}>",
-        to        => namefix($args{recname}) . " <$args{recmail}>",
-        bcc       => ${$in{email}},
-        subject   => ${$in{subject}},
-        msg       => ${$in{message}},
-    })) or die "Cannot send mail.\n$Mail::Sender::Error\n";
+    ref (new Mail::Sender -> MailMsg( {
+        smtp      => $args->{smtp},
+        from      => ( $args->{bouncetosender} ? $in->{email} : $args->{recmail} ),
+        fake_from => namefix( $in->{name} ) . " <$in->{email}>",
+        to        => namefix( $args->{recname} ) . " <$args->{recmail}>",
+        bcc       => $in->{email},
+        subject   => $in->{subject},
+        msg       => $in->{message},
+    } )) or die "Cannot send mail. $Mail::Sender::Error\n";
 
     # Print resulting page
-    my $sent_to = sprintf escapeHTML($args{sent_to}), '<b>'
-      . escapeHTML($args{recname}) . '</b>', '<b>' . escapeHTML(${$in{email}}) . '</b>';
     my @resultargs = qw/recname returnlinktext returnlinkurl title thanks/;
-    $args{$_} = escapeHTML($args{$_}) for @resultargs;
-    $args{returnlinkurl} =~ s/ /%20/g;
-    if ($args{resulttmplpath}) {
-        my %result_vars = ();
-        $result_vars{style} = \stylesheet();
+    $args->{$_} = escapeHTML( $args->{$_} ) for @resultargs;
+    my $sent_to = sprintf escapeHTML( $args->{sent_to} ),
+      "<b>$args->{recname}</b>", '<b>' . escapeHTML( $in->{email} ) . '</b>';
+    $args->{returnlinkurl} =~ s/ /%20/g;
+    if ( $args->{resulttmplpath} ) {
+        my %result_vars;
+        $result_vars{style} = stylesheet( $args->{styleurl} );
         $result_vars{sent_to} = \$sent_to;
-        $result_vars{$_} = \$args{$_} for @resultargs;
-        templateprint($args{resulttmplpath}, %result_vars);
+        $result_vars{$_} = \$args->{$_} for @resultargs;
+        templateprint($args->{resulttmplpath}, $args->{encoding}, %result_vars);
     } else {
-        headprint();
+        headprint($args);
 
         print <<RESULT;
-<h1>$args{thanks}</h1>
+<h1>$args->{thanks}</h1>
 <p>$sent_to</p>
-<p class="returnlink"><a href="$args{returnlinkurl}">$args{returnlinktext}</a></p>
+<p class="returnlink"><a href="$args->{returnlinkurl}">$args->{returnlinktext}</a></p>
 </body>
 </html>
 RESULT
@@ -397,66 +404,67 @@ RESULT
 }
 
 sub formprint {
+    my ($args, $in, $error) = @_;
     my $scriptname = basename( $0 or $ENV{SCRIPT_FILENAME} );
-    my $erroralert = %error ? '<p class="erroralert">'
-      . sprintf (escapeHTML($args{erroralert}), '<span class="error">'
-      . "\n" . escapeHTML($args{marked}) . '</span>') . '</p>' : '';
+    my $erroralert = %$error ? '<p class="erroralert">'
+      . sprintf( escapeHTML( $args->{erroralert} ), '<span class="error">'
+      . "\n" . escapeHTML( $args->{marked} ) . '</span>' ) . '</p>' : '';
     my @formargs = qw/recname returnlinktext returnlinkurl title namelabel
                       emaillabel subjectlabel msglabel reset send/;
-    $args{$_} = escapeHTML($args{$_}) for @formargs;
-    $args{returnlinkurl} =~ s/ /%20/g;
-    ${$in{subject}} ||= $args{subject};
+    $args->{$_} = escapeHTML( $args->{$_} ) for @formargs;
+    $args->{returnlinkurl} =~ s/ /%20/g;
+    $in->{subject} ||= $args->{subject};
     for (qw/name email subject message/) {
-        ${$in{$_}} = $in{$_} ? escapeHTML(${$in{$_}}) : '';
-        $error{$_} ||= '';
+        $in->{$_} = $in->{$_} ? escapeHTML( $in->{$_} ) : '';
+        $error->{$_} ||= '';
     }
 
     # Prevent horizontal scrolling in NS4
     my $softwrap = ($ENV{HTTP_USER_AGENT} =~ /Mozilla\/[34]/
       and $ENV{HTTP_USER_AGENT} !~ /MSIE|Opera/) ? ' wrap="soft"' : '';
 
-    if ($args{formtmplpath}) {
-        my %form_vars = ();
-        $form_vars{style} = \stylesheet();
+    if ( $args->{formtmplpath} ) {
+        my %form_vars;
+        $form_vars{style} = stylesheet( $args->{styleurl} );
         $form_vars{scriptname} = \$scriptname;
         $form_vars{erroralert} = \$erroralert;
-        $form_vars{$_} = \$args{$_} for @formargs;
+        $form_vars{$_} = \$args->{$_} for @formargs;
         for (qw/name email subject message/) {
-            $form_vars{$_} = $in{$_};
-            $form_vars{$_.'error'} = \$error{$_};
+            $form_vars{$_} = \$in->{$_};
+            $form_vars{$_.'error'} = \$error->{$_};
         }
         $form_vars{softwrap} = \$softwrap;
-        templateprint($args{formtmplpath}, %form_vars);
+        templateprint($args->{formtmplpath}, $args->{encoding}, %form_vars);
     } else {
-        headprint();
+        headprint($args);
 
         print <<FORM;
 <form action="$scriptname" method="post">
 <table cellpadding="3">
 <tr>
-<td colspan="4"><h1 class="halign">$args{title} $args{recname}</h1></td>
+<td colspan="4"><h1 class="halign">$args->{title} $args->{recname}</h1></td>
 </tr><tr>
-<td><p$error{name}>$args{namelabel}</p></td><td><input type="text" name="name"
- value="${$in{name}}" size="20" />&nbsp;</td>
-<td><p$error{email}>$args{emaillabel}</p></td><td><input type="text" name="email"
- value="${$in{email}}" size="20" /></td>
+<td><p$error->{name}>$args->{namelabel}</p></td><td><input type="text" name="name"
+ value="$in->{name}" size="20" />&nbsp;</td>
+<td><p$error->{email}>$args->{emaillabel}</p></td><td><input type="text" name="email"
+ value="$in->{email}" size="20" /></td>
 </tr><tr>
-<td><p$error{subject}>$args{subjectlabel}</p></td>
-<td colspan="3"><input type="text" name="subject" value="${$in{subject}}" size="55" /></td>
+<td><p$error->{subject}>$args->{subjectlabel}</p></td>
+<td colspan="3"><input type="text" name="subject" value="$in->{subject}" size="55" /></td>
 </tr><tr>
-<td colspan="4"><p$error{message}>$args{msglabel}</p></td>
+<td colspan="4"><p$error->{message}>$args->{msglabel}</p></td>
 </tr><tr>
 <td colspan="4">
-<textarea name="message" rows="8" cols="65"$softwrap>${$in{message}}</textarea>
+<textarea name="message" rows="8" cols="65"$softwrap>$in->{message}</textarea>
 </td>
 </tr><tr>
 <td colspan="4" class="halign">
 $erroralert
-<input class="button" type="reset" value="$args{reset}" />&nbsp;&nbsp;
-<input class="button" type="submit" value="$args{send}" /></td>
+<input class="button" type="reset" value="$args->{reset}" />&nbsp;&nbsp;
+<input class="button" type="submit" value="$args->{send}" /></td>
 </tr><tr>
-<td colspan="4"><p class="returnlink"><a href="$args{returnlinkurl}">
-$args{returnlinktext}</a></p></td>
+<td colspan="4"><p class="returnlink"><a href="$args->{returnlinkurl}">
+$args->{returnlinktext}</a></p></td>
 </tr>
 </table>
 </form>
@@ -467,45 +475,46 @@ FORM
 }
 
 sub headprint {
-    print "Content-type: text/html; charset=$args{encoding}\n\n";
+    my $args = shift;
+    print "Content-type: text/html; charset=$args->{encoding}\n\n";
     print <<HEAD;
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
                       "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>$args{title} $args{recname}</title>
+<title>$args->{title} $args->{recname}</title>
 <style type="text/css">
 .error { font-weight: bold }
 </style>
-${\stylesheet()}
+${ stylesheet( $args->{styleurl} ) }
 </head>
 <body>
 HEAD
 }
 
 sub stylesheet {
-    ($args{styleurl} = escapeHTML($args{styleurl})) =~ s/ /%20/g;
-    $args{styleurl} ? '<link rel="stylesheet" type="text/css" href="'
-      . "$args{styleurl}\" />" : '';
+    my $url = shift || return \'';
+    $url =~ s/ /%20/g;
+    \('<link rel="stylesheet" type="text/css" href="' . $url . '" />');
 }
 
 sub templateprint {
-    my ($template, %tmpl_vars) = @_;
-    my $error = '';
+    my ($template, $encode, %tmpl_vars) = @_;
+    my $error;
     open FH, "< $template" or die "Can't open $template\n$!";
     my $output = do { local $/; <FH> };
     close FH;
     $output =~ s[<(?:!--\s*)?tmpl_var\s*(?:name\s*=\s*)?
                  (?:"([^">]*)"|'([^'>]*)'|([^\s=>]*))
                  \s*(?:--)?>][
-        if ($tmpl_vars{lc $+}) {
-            ${$tmpl_vars{lc $+}};
+        if ( $tmpl_vars{lc $+} ) {
+            ${ $tmpl_vars{lc $+} };
         } else {
             $error .= "Unknown template variable: '$+'\n";
         }
     ]egix;
     CFdie("<pre>$error") if $error;
-    print "Content-type: text/html; charset=$args{encoding}\n\n";
+    print "Content-type: text/html; charset=$encode\n\n";
     print $output;
 }
 
@@ -515,7 +524,7 @@ sub namefix {
         $name =~ tr/"/'/;
         $name = qq{"$name"};
     }
-    $name
+    $name;
 }
 
 1;

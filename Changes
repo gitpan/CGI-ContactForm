@@ -1,5 +1,8 @@
 Version history for Perl extension CGI::ContactForm.
 
+v1.22 (Jul 20, 2004)
+    File scoped variables discarded.
+
 v1.21 (Mar 14, 2004)
     Default value 'localhost' for the 'smtp' argument.
 
