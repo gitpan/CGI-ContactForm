@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.25 2003/07/01 22:38:15 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.27 2003/07/10 21:03:39 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -169,6 +169,10 @@ C<Flowed.pm> to those directories.
 
 =over 4
 
+=item v1.14 (Jul 10, 2003)
+
+Handling of error messages improved.
+
 =item v1.13 (Jul 1, 2003)
 
 Code cleanup.
@@ -256,30 +260,45 @@ use CGI 'escapeHTML';
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.13';
+$VERSION = 1.14;
 
 use Exporter;
 @ISA = 'Exporter';
 @EXPORT = 'contactform';
 
-sub contactform {
-    local $^W = 1;  # enables warnings
-    %args = %in = %error = ();
-    arguments(@_);
-    if ($ENV{REQUEST_METHOD} eq 'POST') {
-        referercheck();
-        formdata();
-        if (formcheck() eq 'OK') {
-            eval { mailsend() };
-            if ($@) {
-                my $err = $@;
-                ($err = escapeHTML($err)) =~ s/\n/<br>\n/g;
-                print "<h1>Error</h1>\n<tt>", $err;
-            }
-            CFexit();
+BEGIN {
+    sub CFdie($) {
+        print "Content-type: text/html\n\n<h1>Error</h1>\n<tt>", shift;
+        if ($ENV{MOD_PERL}) {
+            eval "use Apache";
+            Apache::exit() unless $@;
         }
+        exit 1;
     }
-    formprint();
+
+    eval "use Mail::Sender";
+    my $error = "$@<p>" if $@;
+    eval "use Text::Flowed 'reformat'";
+    $error .= $@ if $@;
+    CFdie($error) if $error;
+}
+
+sub contactform {
+    MAIN: {
+        local $^W = 1;  # enables warnings
+        %args = %in = %error = ();
+        arguments(@_);
+        if ($ENV{REQUEST_METHOD} eq 'POST') {
+            referercheck();
+            formdata();
+            if (formcheck() == 0) {
+                eval { mailsend() };
+                CFdie(escapeHTML(my $msg = $@)) if $@;
+                last MAIN;
+            }
+        }
+        formprint();
+    }
 }
 
 sub arguments {
@@ -306,32 +325,28 @@ sub arguments {
         sent_to        => 'The message was sent to %s with a copy to %s.',
         encoding       => 'iso-8859-1',
     );
-    my @error = ();
+    my $error = '';
     {
         local $SIG{__WARN__} = sub { die $_[0] };
         eval { %args = (%defaults, @_) };
-        push @error, $@, "The module expects a number of key/value pairs.\n" if $@;
+        $error .= "$@The module expects a number of key/value pairs.\n" if $@;
     }
     for (qw/recname recmail smtp/) {
-        push @error, "The compulsory argument '$_' is missing.\n" unless $args{$_};
+        $error .= "The compulsory argument '$_' is missing.\n" unless $args{$_};
     }
     for (keys %args) {
-        push @error, "Unknown argument: '$_'\n" unless defined $defaults{$_};
+        $error .= "Unknown argument: '$_'\n" unless defined $defaults{$_};
     }
-    if ($args{recmail} and emailsyntax($args{recmail}) eq 'ERR') {
-        push @error, "'$args{recmail}' is not a valid email address.\n";
+    if ($args{recmail} and emailsyntax($args{recmail})) {
+        $error .= "'$args{recmail}' is not a valid email address.\n";
     }
     for ('formtmplpath', 'resulttmplpath') {
         if ($args{$_} and !-f $args{$_}) {
-            push @error, "Argument '$_': Can't find the file $args{$_}\n";
+            $error .= "Argument '$_': Can't find the file $args{$_}\n";
         }
     }
-    print "Content-type: text/html; charset=$args{encoding}\n\n";
-    if (@error) {
-        print "<h1>Error</h1>\n<pre>";
-        print for @error;
 
-        print <<EXAMPLE;
+    CFdie("<pre>$error" . <<EXAMPLE
 
 Example:
 
@@ -342,29 +357,24 @@ Example:
     );
 EXAMPLE
 
-        CFexit();
-    }
+    ) if $error;
 }
 
 sub referercheck {
     return if $ENV{HTTP_REFERER} =~ /$ENV{HTTP_HOST}$ENV{REQUEST_URI}/i;
-    print "<h1>Error</h1>\n",
-          "<p>This script prefers data input from its self generated form.\n",
-          "<p><a href=\"$ENV{REQUEST_URI}\">Try again</a>";
-    CFexit();
+    CFdie("This script prefers data input from its self generated form.\n"
+          . "<p><a href=\"$ENV{REQUEST_URI}\">Try again</a>");
 }
 
 sub formdata {
     my $size = $ENV{CONTENT_LENGTH} ? $ENV{CONTENT_LENGTH} : (stat(STDIN))[7];
     if ($size > 1024 * $args{maxsize}) {
-        print "<h1>Error</h1>\n",
-              "<p>The message size exceeds the $args{maxsize} KiB limit.\n",
-              '<p><a href="javascript:history.back(1)">Back</a>';
-        CFexit();
+        CFdie("The message size exceeds the $args{maxsize} KiB limit.\n"
+              . '<p><a href="javascript:history.back(1)">Back</a>');
     }
 
     # create hash of references to the form data
-    my $o = new CGI;
+    my $o = new CGI(\*STDIN);
     $in{$_} = \$o->{$_}[0] for $o->param;
 
     # trim whitespace in message headers
@@ -377,15 +387,15 @@ sub formdata {
 
 sub formcheck {
     for (qw/name subject message/) { $error{$_} = ' class="error"' unless ${$in{$_}} }
-    $error{email} = ' class="error"' if emailsyntax(${$in{email}}) eq 'ERR';
-    return %error ? '' : 'OK';
+    $error{email} = ' class="error"' if emailsyntax(${$in{email}});
+    return %error ? 1 : 0;
 }
 
 sub emailsyntax {
-    return 'ERR' unless my ($localpart, $domain) = shift =~ /^(.+)@(.+)/;
+    return 1 unless my ($localpart, $domain) = shift =~ /^(.+)@(.+)/;
     my $char = '[^()<>@,;:\/\s"\'&|.]';
-    return 'ERR' unless $localpart =~ /^$char+(?:\.$char+)*$/ or $localpart =~ /^"[^",]+"$/;
-    return $domain =~ /^$char+(?:\.$char+)+$/ ? '' : 'ERR';
+    return 1 unless $localpart =~ /^$char+(?:\.$char+)*$/ or $localpart =~ /^"[^",]+"$/;
+    return $domain =~ /^$char+(?:\.$char+)+$/ ? 0 : 1;
 }
 
 sub mailsend {
@@ -395,14 +405,11 @@ sub mailsend {
     push @extras, "X-Originating-IP: [$ENV{REMOTE_ADDR}]" if $ENV{REMOTE_ADDR};
 
     # Make message format=flowed (RFC 2646)
-    require Text::Flowed;
-    import Text::Flowed 'reformat';
     ${$in{message}} = reformat(${$in{message}}, { max_length => 66, opt_length => 66 });
     push @extras, 'MIME-Version: 1.0';
     push @extras, "Content-type: text/plain; charset=$args{encoding}; format=flowed";
 
     # Send message
-    require Mail::Sender;
     $Mail::Sender::NO_X_MAILER = 1;
     $Mail::Sender::SITE_HEADERS = join "\r\n", @extras;
     (new Mail::Sender) -> MailMsg ({
@@ -450,8 +457,8 @@ sub formprint {
     $args{$_} = escapeHTML($args{$_}) for @formargs;
     $args{returnlinkurl} =~ s/ /%20/g;
     for (qw/name email subject message/) {
-        ${$in{$_}} = $in{$_} ? escapeHTML(${$in{$_}}) : '';
-        $error{$_} = '' unless $error{$_};
+        ${$in{$_}} = escapeHTML(${$in{$_}}) || '';
+        $error{$_} ||= '';
     }
 
     # Prevent horizontal scrolling in NS4
@@ -510,6 +517,7 @@ FORM
 }
 
 sub headprint {
+    print "Content-type: text/html; charset=$args{encoding}\n\n";
     print <<HEAD;
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
                       "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
@@ -533,7 +541,7 @@ sub stylesheet {
 
 sub templateprint {
     my ($template, %tmpl_vars) = @_;
-    my @error = ();
+    my $error = '';
     open FH, "< $template" or die "Can't open $template\n$!";
     my $output = join '', <FH>;
     close FH;
@@ -544,14 +552,11 @@ sub templateprint {
         if ($tmpl_vars{lc $value}) {
             ${$tmpl_vars{lc $value}};
         } else {
-            push @error, "Unknown template variable: '$value'\n";
+            $error .= "Unknown template variable: '$value'\n";
         }
     ]egix;
-    if (@error) {
-        print "<h1>Error</h1>\n<pre>";
-        print for @error;
-        CFexit();
-    }
+    CFdie("<pre>$error") if $error;
+    print "Content-type: text/html; charset=$args{encoding}\n\n";
     print $output;
 }
 
@@ -562,22 +567,6 @@ sub namefix {
         $name = qq{"$name"};
     }
     $name
-}
-
-# mod_perl preparations
-BEGIN {
-    sub CFexit {
-        if ($ENV{MOD_PERL}) {
-            Apache::exit() if eval "require Apache";
-        }
-        exit;
-    }
-
-    if ($ENV{MOD_PERL}) {
-        # Substitute for using startup.pl
-        require Mail::Sender;
-        require Text::Flowed;
-    }
 }
 
 1;

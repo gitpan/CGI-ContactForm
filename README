@@ -135,6 +135,9 @@ DEPENDENCIES
     "Flowed.pm" to those directories.
 
 VERSION HISTORY
+    v1.14 (Jul 10, 2003)
+        Handling of error messages improved.
+
     v1.13 (Jul 1, 2003)
         Code cleanup.
 
