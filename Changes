@@ -1,4 +1,10 @@
-Version history for Perl extension CGI::ContactForm.
+Version history for CGI::ContactForm.
+
+v1.30 (Feb 11, 2005)
+    Function copied from Text::Flowed, which module no longer needs to
+    be loaded.
+
+    Email validation modified to conform better with RFC 822.
 
 v1.22 (Jul 20, 2004)
     File scoped variables discarded.

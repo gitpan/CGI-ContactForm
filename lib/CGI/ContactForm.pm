@@ -1,11 +1,11 @@
 package CGI::ContactForm;
 
-$VERSION = '1.22';
-# $Id: ContactForm.pm,v 1.41 2004/07/20 02:37:41 Gunnar Hjalmarsson Exp $
+$VERSION = '1.30';
+# $Id: ContactForm.pm,v 1.45 2005/02/12 01:05:45 gunnarh Exp $
 
 =head1 NAME
 
-CGI::ContactForm - Perl extension for generating a web contact form
+CGI::ContactForm - Generate a web contact form
 
 =head1 SYNOPSIS
 
@@ -13,7 +13,7 @@ CGI::ContactForm - Perl extension for generating a web contact form
 
     contactform (
         recname         => 'John Smith',
-        recmail         => 'john.smith@domain.com',
+        recmail         => 'john.smith@example.com',
         styleurl        => '/style/ContactForm.css',
     );
 
@@ -159,18 +159,12 @@ On some servers, the CGI file must be located in the C<cgi-bin> directory
 that the style sheet typically needs to be located somewhere outside the
 C<cgi-bin>.
 
-=head1 DEPENDENCIES
+=head1 DEPENDENCY
 
-C<CGI::ContactForm> requires these non-standard modules:
-
-L<Mail::Sender|Mail::Sender>
-
-L<Text::Flowed|Text::Flowed>
-
-If C<Mail::Sender> and C<Text::Flowed> need to be installed manually,
-you shall create C</www/username/cgi-bin/lib/Mail> and
-C</www/username/cgi-bin/lib/Text> and upload C<Sender.pm> respective
-C<Flowed.pm> to those directories.
+C<CGI::ContactForm> requires the non-standard module
+L<Mail::Sender|Mail::Sender>. If C<Mail::Sender> needs to be installed
+manually, you shall create C</www/username/cgi-bin/lib/Mail> and upload
+C<Sender.pm> to that directory.
 
 =head1 AUTHENTICATION
 
@@ -199,7 +193,7 @@ See the L<Mail::Sender|Mail::Sender> documentation for further guidance.
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
-  Copyright © 2003-2004 Gunnar Hjalmarsson
+  Copyright © 2003-2005 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
 
 This module is free software; you can redistribute it and/or modify it
@@ -234,10 +228,7 @@ BEGIN {
     }
 
     eval "use Mail::Sender";
-    my $error = "$@<p>" if $@;
-    eval "use Text::Flowed 'reformat'";
-    $error .= $@ if $@;
-    CFdie($error) if $error;
+    CFdie($@) if $@;
 }
 
 sub contactform {
@@ -308,7 +299,7 @@ Example:
 
     contactform (
         recname => 'John Smith',
-        recmail => 'john.smith@domain.com',
+        recmail => 'john.smith@example.com',
     );
 EXAMPLE
 
@@ -347,9 +338,11 @@ sub formcheck {
 
 sub emailsyntax {
     return 1 unless my ($localpart, $domain) = shift =~ /^(.+)@(.+)/;
-    my $char = '[^()<>@,;:\/\s"\'&|.]';
-    return 1 unless $localpart =~ /^$char+(?:\.$char+)*$/ or $localpart =~ /^"[^",]+"$/;
-    $domain =~ /^$char+(?:\.$char+)+$/ ? 0 : 1;
+    my $atom = '[^[:cntrl:] "(),.:;<>@\[\\\\\]]+';
+    my $qstring = '"(?:\\\\.|[^"\\\\\s]|[ \t])*"';
+    my $word = qr($atom|$qstring);
+    return 1 unless $localpart =~ /^$word(?:\.$word)*$/;
+    $domain =~ /^$atom(?:\.$atom)+$/ ? 0 : 1;
 }
 
 sub mailsend {
@@ -525,6 +518,97 @@ sub namefix {
         $name = qq{"$name"};
     }
     $name;
+}
+
+sub reformat {
+# This subroutine was copied from Text::Flowed v0.14, written by Philip Mak
+
+    # Help functions in Text::Flowed nested into this copy of reformat()
+    sub _num_quotes { $_[0] =~ /^(>*)/; length $1 }
+    sub _unquote { my $line = shift; $line =~ s/^(>+)//g; $line }
+    sub _flowed {
+        my $line = shift;
+        # Lines with only spaces in them are not considered flowed
+        # (heuristic to recover from sloppy user input)
+        return 0 if $line =~ /^ *$/;
+        $line =~ / $/;
+    }
+    sub _trim { local $_ = shift; s/ +$//g; $_ }
+    sub _stuff {
+        my ($text, $num_quotes) = @_;
+        if ($text =~ /^ / || $text =~ /^>/ || $text =~ /^From / || $num_quotes > 0) {
+            return " $text";
+        }
+        $text;
+    }
+    sub _unstuff { local $_ = shift; s/^ //; $_ }
+
+    my @input = split "\n", $_[0];
+    my $args = $_[1];
+    $args->{max_length} ||= 79;
+    $args->{opt_length} ||= 72;
+    my @output = ();
+
+    # Process message line by line
+    while (@input) {
+        # Count and strip quote levels
+        my $line = shift @input;
+        my $num_quotes = _num_quotes($line);
+        $line = _unquote($line);
+
+        # Should we interpret this line as flowed?
+        if ( !$args->{fixed} || ( $args->{fixed} == 1 && $num_quotes ) ) {
+            $line = _unstuff($line);
+            # While line is flowed, and there is a next line, and the
+            # next line has the same quote depth
+            while (_flowed($line) && @input && _num_quotes($input[0]) == $num_quotes) {
+                # Join the next line
+                $line .= _unstuff(_unquote(shift @input));
+            }
+        }
+        # Ensure line is fixed, since we joined all flowed lines
+        $line = _trim($line);
+
+        # Increment quote depth if we're quoting
+        $num_quotes++ if $args->{quote};
+
+        if (!$line) {
+            # Line is empty
+            push @output, '>' x $num_quotes;
+        } elsif (length($line) + $num_quotes <= $args->{max_length} - 1) {
+            # Line does not require rewrapping
+            push @output, '>' x $num_quotes . _stuff($line, $num_quotes);
+        } else {
+            # Rewrap this paragraph
+            while ($line) {
+                # Stuff and re-quote the line
+                $line = '>' x $num_quotes . _stuff($line, $num_quotes);
+
+                # Set variables used in regexps
+                my $min = $num_quotes + 1;
+                my $opt1 = $args->{opt_length} - 1;
+                my $max1 = $args->{max_length} - 1;
+                if ( length($line) <= $args->{opt_length} ) {
+                    # Remaining section of line is short enough
+                    push @output, $line;
+                    last;
+                } elsif ( $line =~ /^(.{$min,$opt1}) (.*)/ ||
+                  $line =~ /^(.{$min,$max1}) (.*)/ || $line =~ /^(.{$min,})? (.*)/ ) {
+                    # 1. Try to find a string as long as opt_length.
+                    # 2. Try to find a string as long as max_length.
+                    # 3. Take the first word.
+                    push @output, "$1 ";
+                    $line = $2;
+                } else {
+                    # One excessively long word left on line
+                    push @output, $line;
+                    last;
+                }
+            }
+        }
+    }
+
+    join("\n", @output)."\n";
 }
 
 1;
