@@ -100,11 +100,19 @@ INSTALLATION
 
             use lib '/www/username/cgi-bin/lib';
 
-  Other installation matters
+  Other Installation Matters
     If you have previous experience from installing CGI scripts, making
     "contact.pl" (or whichever name you choose) work should be easy.
-    Otherwise there are many CGI tutorials for beginners available on the
-    web.
+    Otherwise, this is a very short lesson:
+
+    1.  Upload the CGI file in ASCII transfer mode to your "cgi-bin".
+
+    2.  Set the file permission 755 (chmod 755).
+
+    If that doesn't do it, there are many CGI tutorials for beginners
+    available on the web. This is one example:
+
+        http://my.execpc.com/~keithp/bdlogcgi.htm
 
     On some servers, the CGI file must be located in the "cgi-bin" directory
     (or in a "cgi-bin" subdirectory). At the same time it's worth noting,
@@ -127,6 +135,12 @@ DEPENDENCIES
     "Flowed.pm" to those directories.
 
 VERSION HISTORY
+    v1.11 (Apr 6, 2003)
+        Markup for 'erroralert' modified for greater flexibility when
+        editing the form template.
+
+        Preparations for mod_perl.
+
     v1.10 (Apr 4, 2003)
         Template based customization added as an option.
 

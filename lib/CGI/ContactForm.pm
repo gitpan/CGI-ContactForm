@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.21 2003/04/04 22:25:21 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.23 2003/04/06 02:28:18 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -121,11 +121,28 @@ to look for modules also in your local library, such as
 
 =back
 
-=head2 Other installation matters
+=head2 Other Installation Matters
 
 If you have previous experience from installing CGI scripts, making
 C<contact.pl> (or whichever name you choose) work should be easy.
-Otherwise there are many CGI tutorials for beginners available on the web.
+Otherwise, this is a B<very> short lesson:
+
+=over 4
+
+=item 1.
+
+Upload the CGI file in ASCII transfer mode to your C<cgi-bin>.
+
+=item 2.
+
+Set the file permission 755 (chmod 755).
+
+=back
+
+If that doesn't do it, there are many CGI tutorials for beginners
+available on the web. This is one example:
+
+    http://my.execpc.com/~keithp/bdlogcgi.htm
 
 On some servers, the CGI file must be located in the C<cgi-bin> directory
 (or in a C<cgi-bin> subdirectory). At the same time it's worth noting,
@@ -151,6 +168,13 @@ C<Flowed.pm> to those directories.
 =head1 VERSION HISTORY
 
 =over 4
+
+=item v1.11 (Apr 6, 2003)
+
+Markup for 'erroralert' modified for greater flexibility when editing the
+form template.
+
+Preparations for mod_perl.
 
 =item v1.10 (Apr 4, 2003)
 
@@ -220,11 +244,11 @@ under the same terms as Perl itself.
 =cut
 
 use strict;
-use CGI qw(param escapeHTML);
+use CGI 'escapeHTML';
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.10';
+$VERSION = '1.11';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -232,10 +256,11 @@ use Exporter;
 
 sub contactform {
     local $^W = 1;  # enables warnings
+    %args = %in = %error = ();
     arguments (@_);
     if ($ENV{'REQUEST_METHOD'} eq 'POST') {
         referercheck();
-        readform();
+        formdata();
         if (formcheck() eq 'OK') {
             eval { mailsend() };
             if ($@) {
@@ -243,11 +268,11 @@ sub contactform {
                 ($err = escapeHTML ($err)) =~ s/\n/<br>\n/g;
                 print "<h1>Error</h1>\n<tt>", $err;
             }
-            exit;
+            CFexit();
         }
     }
     formprint();
-    exit;
+    CFexit();
 }
 
 sub arguments {
@@ -310,7 +335,7 @@ Example:
     );
 EXAMPLE
 
-        exit;
+        CFexit();
     }
 }
 
@@ -319,18 +344,18 @@ sub referercheck {
     print "<h1>Error</h1>\n",
           "<p>This script only permits data input from its self generated form.\n",
           "<p><a href=\"$ENV{'REQUEST_URI'}\">Try again</a>";
-    exit;
+    CFexit();
 }
 
-sub readform {
+sub formdata {
     my $size = $ENV{'CONTENT_LENGTH'} ? $ENV{'CONTENT_LENGTH'} : (stat(STDIN))[7];
     if ($size > 1024 * $args{'maxsize'}) {
         print "<h1>Error</h1>\n",
               "<p>The message size exceeds the $args{'maxsize'} KiB limit.\n",
               '<p><a href="javascript:history.back(1)">Back</a>';
-        exit;
+        CFexit();
     }
-    for (param()) { $in{$_} = param($_) }
+    tie %in, 'CGI';
 
     # trim whitespace in message headers
     for (qw/name email subject/) {
@@ -341,7 +366,6 @@ sub readform {
 }
 
 sub formcheck {
-    %error = ();
     for (qw/name subject message/) { $error{$_} = ' class="error"' unless $in{$_} }
     $error{'email'} = ' class="error"' if emailsyntax ($in{'email'}) eq 'ERR';
     return %error ? '' : 'OK';
@@ -410,9 +434,9 @@ RESULT
 
 sub formprint {
     (my $scriptname = $0 ? $0 : $ENV{'SCRIPT_FILENAME'}) =~ s/.*[\/\\]//;
-    my $erroralert = %error ? "<tr>\n<td colspan=\"4\"><p class=\"halign\">"
-      . sprintf (escapeHTML ($args{'erroralert'}), "<span class=\"error\">\n"
-      . escapeHTML ($args{'marked'}) . '</span>') . "</p></td>\n</tr>" : '';
+    my $erroralert = %error ? '<p class="erroralert">'
+      . sprintf (escapeHTML ($args{'erroralert'}), '<span class="error">'
+      . "\n" . escapeHTML ($args{'marked'}) . '</span>') . '</p>' : '';
     my @formargs = qw/recname returnlinktext returnlinkurl title namelabel
                       emaillabel subjectlabel msglabel reset send/;
     for (@formargs) { $args{$_} = escapeHTML ($args{$_}) }
@@ -461,8 +485,9 @@ sub formprint {
 <td colspan="4">
 <textarea name="message" rows="8" cols="65"$softwrap>$in{'message'}</textarea>
 </td>
-</tr>$erroralert<tr>
+</tr><tr>
 <td colspan="4" class="halign">
+$erroralert
 <input class="button" type="reset" value="$args{'reset'}" />&nbsp;&nbsp;
 <input class="button" type="submit" value="$args{'send'}" /></td>
 </tr><tr>
@@ -520,7 +545,7 @@ sub templateprint {
     if (@error) {
         print "<h1>Error</h1>\n<pre>";
         for (@error) { print }
-        exit;
+        CFexit();
     }
     print $output;
 }
@@ -532,6 +557,22 @@ sub namefix {
         $name = qq{"$name"};
     }
     $name
+}
+
+# mod_perl preparations
+BEGIN {
+    sub CFexit {
+        if ($ENV{MOD_PERL}) {
+            Apache::exit() if eval "require Apache";
+        }
+        exit;
+    }
+
+    if ($ENV{MOD_PERL}) {
+        # Substitute for using startup.pl
+        require Mail::Sender;
+        require Text::Flowed;
+    }
 }
 
 1;

@@ -1,4 +1,4 @@
-/* $Id: ContactForm.css,v 1.5 2003/04/04 14:07:53 Gunnar Hjalmarsson Exp $ */
+/* $Id: ContactForm.css,v 1.7 2003/04/06 02:19:59 Gunnar Hjalmarsson Exp $ */
 
 p, h1, body { font-family: arial, helvetica, sans-serif }
 p, body { background: #f0f0f0; color: black }
@@ -7,7 +7,7 @@ h1 {
     background: #f0f0f0;
     color: #4c5ea8;
     font-size: 19px;
-    margin-top: 0.7em;
+    margin-top: 0.5em;
     margin-bottom: 0.5em;
 }
 input, textarea {
@@ -17,6 +17,7 @@ input, textarea {
     color: black;
 }
 p { font-size: 14px; margin-top: 0; margin-bottom: 0.1em }
+p.erroralert { margin-bottom: 0.7em }
 p.returnlink { margin-top: 1em }
 .halign, td p.returnlink { text-align: center }
 .error { color: #cc6600; background: none }
