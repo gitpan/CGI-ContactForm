@@ -4,7 +4,9 @@ examples/ContactForm_form.tmpl
 examples/ContactForm_result.tmpl
 examples/Sender.config
 lib/CGI/ContactForm.pm
+lib/CGI/ContactForm/MHonArc.pm
+Changes
 Makefile.PL
 MANIFEST
-README
+readme.html
 test.pl

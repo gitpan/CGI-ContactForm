@@ -1,6 +1,7 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.35 2003/10/18 20:18:45 Gunnar Hjalmarsson Exp $
+$VERSION = '1.20';
+# $Id: ContactForm.pm,v 1.38 2004/01/12 17:49:35 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -11,10 +12,10 @@ CGI::ContactForm - Perl extension for generating a web contact form
     use CGI::ContactForm;
 
     contactform (
-        recname        => 'John Smith',
-        recmail        => 'john.smith@domain.com',
-        smtp           => 'smtp.domain.com',
-        styleurl       => '/style/ContactForm.css',
+        recname         => 'John Smith',
+        recmail         => 'john.smith@domain.com',
+        smtp            => 'smtp.domain.com',
+        styleurl        => '/style/ContactForm.css',
     );
 
 =head1 DESCRIPTION
@@ -26,8 +27,8 @@ key/value pairs.
 C<CGI::ContactForm> sends a well formated (plain text format=flowed in accordance
 with RFC 2646) email message, with the sender's address in the C<From:> header, and
 the sender gets a C<bcc> copy. If the email address stated by the sender is invalid,
-the failure message is sent to the recipient address, through which you know that
-you don't need to bother with a reply, at least not to that address...
+by default the failure message is sent to the recipient address, through which you
+know that you don't need to bother with a reply, at least not to that address...
 
 =head2 Arguments
 
@@ -47,6 +48,7 @@ C<CGI::ContactForm> takes the following arguments:
     returnlinktext      'Main Page'
     returnlinkurl       '/'
     subject             (none)
+    bouncetosender      0
     formtmplpath        (none)
     resulttmplpath      (none)
     maxsize             100 (KiB)
@@ -69,7 +71,7 @@ C<CGI::ContactForm> takes the following arguments:
 =head2 Customization
 
 There are only three compulsory arguments. The example CGI script
-C<contact.pl>, that is included in the distribution, also sets the C<styleurl>
+C<contact.pl>, that is included in the distribution, also uses the C<styleurl>
 argument, assuming the use of the enclosed style sheet C<ContactForm.css>.
 That results in a decently styled form with a minimum of effort.
 
@@ -91,7 +93,6 @@ Type the following:
 
     perl Makefile.PL
     make
-    make test
     make install
 
 =head2 Manual Installation
@@ -112,6 +113,11 @@ Designate a directory as your local library for Perl modules, for instance
 
 Create the directory C</www/username/cgi-bin/lib/CGI>, and upload
 C<ContactForm.pm> to that directory.
+
+=item *
+
+Create the directory C</www/username/cgi-bin/lib/CGI/ContactForm>, and
+upload C<MHonArc.pm> to that directory.
 
 =item *
 
@@ -152,12 +158,11 @@ C<cgi-bin>.
 
 =head1 DEPENDENCIES
 
-C<CGI::ContactForm> requires these modules:
+C<CGI::ContactForm> requires these non-standard modules:
 
-    Mail::Sender
-    Text::Flowed
+L<Mail::Sender|Mail::Sender>
 
-(can be downloaded from CPAN http://www.cpan.org/ )
+L<Text::Flowed|Text::Flowed>
 
 If C<Mail::Sender> and C<Text::Flowed> need to be installed manually,
 you shall create C</www/username/cgi-bin/lib/Mail> and
@@ -187,128 +192,32 @@ for authentication may be to make use of the C<Sender.config> file that
 is included in the distribution. You just edit it and upload it to the
 same directory as the one where C<Sender.pm> is located.
 
-See the C<Mail::Sender> documentation for further guidance.
-
-=head1 VERSION HISTORY
-
-=over 4
-
-=item v1.18 (Oct 18, 2003)
-
-Improved documentation of mail server authentication.
-
-=item v1.17 (Oct 8, 2003)
-
-New argument: 'subject' - for setting a default subject.
-
-The file C<Sender.config> added to the distribution to facilitate
-authentication to a mail server.
-
-=item v1.16 (Sep 13, 2003)
-
-Mail::Sender errors captured also with the most recent Mail::Sender versions.
-
-=item v1.15 (Aug 24, 2003)
-
-Referer check removed, since it made the script fail with certain browsers
-while its security value was limited.
-
-=item v1.14 (Jul 10, 2003)
-
-Handling of error messages improved.
-
-=item v1.13 (Jul 1, 2003)
-
-Code cleanup.
-
-=item v1.12 (Apr 11, 2003)
-
-References to the form data for saving memory.
-
-=item v1.11 (Apr 6, 2003)
-
-Markup for 'erroralert' modified for greater flexibility when editing the
-form template.
-
-Preparations for mod_perl.
-
-=item v1.10 (Apr 4, 2003)
-
-Template based customization added as an option.
-
-=item v1.03 (Mar 30, 2003)
-
-CGI.pm used for parsing form data.
-
-New argument: 'maxsize' - for limiting the message size.
-
-=item v1.02 (Feb 16, 2003)
-
-DOCTYPE declaration changed to XHTML 1.1.
-
-=item v1.01 (Feb 13, 2003)
-
-CSS validation error corrected.
-
-=item v1.0 (Feb 12, 2003)
-
-Additional arguments added that makes it possible to have the form display
-non-English text.
-
-Warnings enabled.
-
-=item v0.4 (Feb 9, 2003)
-
-Error alert message added. Also C<ContactForm.css> was modified for this reason.
-
-Simple test script included in the distribution.
-
-=item v0.3 (Feb 7, 2003)
-
-Check of email syntax modified (hopefully now closer to RFC 822).
-
-Better structured code.
-
-=item v0.2 (Feb 5, 2003)
-
-Referer check in order to only accept data input from the generated form.
-
-Improved email validation.
-
-=item v0.1 (Feb 3, 2003)
-
-Initial release.
-
-=back
-
-=head1 LATEST VERSION
-
-The latest version of C<CGI::ContactForm> is available at:
-
-  http://search.cpan.org/author/GUNNAR/
-
-  http://www.gunnar.cc/contactform/
+See the L<Mail::Sender|Mail::Sender> documentation for further guidance.
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
-  Copyright © 2003 Gunnar Hjalmarsson
+  Copyright © 2003-2004 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
 
 This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
 
+=head1 SEE ALSO
+
+L<CGI::ContactForm::MHonArc|CGI::ContactForm::MHonArc>,
+L<Mail::Sender|Mail::Sender>
+
 =cut
 
 use strict;
 use CGI 'escapeHTML';
+use File::Basename;
 my (%args, %in, %error);
-use vars qw($VERSION @ISA @EXPORT);
-
-$VERSION = '1.18';
-
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use Exporter;
 @ISA = 'Exporter';
 @EXPORT = 'contactform';
+@EXPORT_OK = 'CFdie';
 
 BEGIN {
     sub CFdie($) {
@@ -351,6 +260,7 @@ sub arguments {
         returnlinktext => 'Main Page',
         returnlinkurl  => '/',
         subject        => '',
+        bouncetosender => 0,
         formtmplpath   => '',
         resulttmplpath => '',
         maxsize        => 100,
@@ -403,7 +313,7 @@ EXAMPLE
 }
 
 sub formdata {
-    my $size = $ENV{CONTENT_LENGTH} ? $ENV{CONTENT_LENGTH} : (stat STDIN)[7];
+    my $size = ($ENV{CONTENT_LENGTH} or (stat STDIN)[7]);
     if ($size > 1024 * $args{maxsize}) {
         CFdie("The message size exceeds the $args{maxsize} KiB limit.\n"
               . '<p><a href="javascript:history.back(1)">Back</a>');
@@ -425,14 +335,14 @@ sub formcheck {
     for (qw/name message/) { $error{$_} = ' class="error"' unless ${$in{$_}} }
     $error{subject} = ' class="error"' unless ${$in{subject}} or $args{subject};
     $error{email} = ' class="error"' if emailsyntax(${$in{email}});
-    return %error ? 1 : 0;
+    %error ? 1 : 0;
 }
 
 sub emailsyntax {
     return 1 unless my ($localpart, $domain) = shift =~ /^(.+)@(.+)/;
     my $char = '[^()<>@,;:\/\s"\'&|.]';
     return 1 unless $localpart =~ /^$char+(?:\.$char+)*$/ or $localpart =~ /^"[^",]+"$/;
-    return $domain =~ /^$char+(?:\.$char+)+$/ ? 0 : 1;
+    $domain =~ /^$char+(?:\.$char+)+$/ ? 0 : 1;
 }
 
 sub mailsend {
@@ -451,7 +361,7 @@ sub mailsend {
     $Mail::Sender::SITE_HEADERS = join "\r\n", @extras;
     ref (new Mail::Sender -> MailMsg ({
         smtp      => $args{smtp},
-        from      => $args{recmail},
+        from      => ( $args{bouncetosender} ? ${$in{email}} : $args{recmail} ),
         fake_from => namefix(${$in{name}}) . " <${$in{email}}>",
         to        => namefix($args{recname}) . " <$args{recmail}>",
         bcc       => ${$in{email}},
@@ -485,7 +395,7 @@ RESULT
 }
 
 sub formprint {
-    (my $scriptname = $0 ? $0 : $ENV{SCRIPT_FILENAME}) =~ s/.*[\/\\]//;
+    my $scriptname = basename( $0 or $ENV{SCRIPT_FILENAME} );
     my $erroralert = %error ? '<p class="erroralert">'
       . sprintf (escapeHTML($args{erroralert}), '<span class="error">'
       . "\n" . escapeHTML($args{marked}) . '</span>') . '</p>' : '';
@@ -573,7 +483,7 @@ HEAD
 
 sub stylesheet {
     ($args{styleurl} = escapeHTML($args{styleurl})) =~ s/ /%20/g;
-    return $args{styleurl} ? '<link rel="stylesheet" type="text/css" href="'
+    $args{styleurl} ? '<link rel="stylesheet" type="text/css" href="'
       . "$args{styleurl}\" />" : '';
 }
 
@@ -581,16 +491,15 @@ sub templateprint {
     my ($template, %tmpl_vars) = @_;
     my $error = '';
     open FH, "< $template" or die "Can't open $template\n$!";
-    my $output = join '', <FH>;
+    my $output = do { local $/; <FH> };
     close FH;
     $output =~ s[<(?:!--\s*)?tmpl_var\s*(?:name\s*=\s*)?
                  (?:"([^">]*)"|'([^'>]*)'|([^\s=>]*))
                  \s*(?:--)?>][
-        my $value = $1 ? $1 : ($2 ? $2 : $3);
-        if ($tmpl_vars{lc $value}) {
-            ${$tmpl_vars{lc $value}};
+        if ($tmpl_vars{lc $+}) {
+            ${$tmpl_vars{lc $+}};
         } else {
-            $error .= "Unknown template variable: '$value'\n";
+            $error .= "Unknown template variable: '$+'\n";
         }
     ]egix;
     CFdie("<pre>$error") if $error;
