@@ -24,7 +24,6 @@ DESCRIPTION
     bother with a reply, at least not to that address...
 
   Arguments
-
     "CGI::ContactForm" takes the following arguments:
 
                             Default value
@@ -40,6 +39,7 @@ DESCRIPTION
         styleurl            (none)
         returnlinktext      'Main Page'
         returnlinkurl       '/'
+        maxsize             100 (KiB)
 
         Additional arguments, intended for forms at non-English sites
         -------------------------------------------------------------
@@ -58,7 +58,6 @@ DESCRIPTION
 
 INSTALLATION
   Installation with Makefile.PL
-
     Type the following:
 
         perl Makefile.PL
@@ -67,7 +66,6 @@ INSTALLATION
         make install
 
   Manual Installation
-
     *   Download the distribution file and extract the contents.
 
     *   Designate a directory as your local library for Perl modules, for
@@ -102,6 +100,11 @@ EXAMPLES
     style sheet typically needs to be located somewhere outside the cgi-bin.
 
 VERSION HISTORY
+    v1.03 (Mar 30, 2003)
+        CGI.pm used for parsing form data.
+
+        New argument: 'maxsize' - for limiting the message size.
+
     v1.02 (Feb 16, 2003)
         DOCTYPE declaration changed to XHTML 1.1.
 

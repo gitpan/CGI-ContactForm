@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.13 2003/02/16 12:49:37 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.16 2003/03/30 20:06:30 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -46,6 +46,7 @@ C<CGI::ContactForm> takes the following arguments:
     styleurl            (none)
     returnlinktext      'Main Page'
     returnlinkurl       '/'
+    maxsize             100 (KiB)
 
     Additional arguments, intended for forms at non-English sites
     -------------------------------------------------------------
@@ -125,6 +126,12 @@ located somewhere outside the cgi-bin.
 
 =over 4
 
+=item v1.03 (Mar 30, 2003)
+
+CGI.pm used for parsing form data.
+
+New argument: 'maxsize' - for limiting the message size.
+
 =item v1.02 (Feb 16, 2003)
 
 DOCTYPE declaration changed to XHTML 1.1.
@@ -183,10 +190,11 @@ under the same terms as Perl itself.
 =cut
 
 use strict;
+use CGI 'param';
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.02';
+$VERSION = '1.03';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -219,6 +227,7 @@ sub arguments {
         styleurl       => '',
         returnlinktext => 'Main Page',
         returnlinkurl  => '/',
+        maxsize        => 100,
         title          => 'Send email to',
         name           => 'Your&nbsp;name:',
         email          => 'Your&nbsp;email:',
@@ -276,14 +285,14 @@ sub referercheck {
 }
 
 sub readform {
-    %in = ();
-    read STDIN, my $input, $ENV{'CONTENT_LENGTH'};
-    $input =~ s/\+/ /g;
-    for (split /&/, $input)	{
-        my ($name, $value) = split /=/;
-        $value =~ s/%(..)/pack 'c', hex $1/ge;
-        $in{$name} = $value;
+    my $size = $ENV{'CONTENT_LENGTH'} ? $ENV{'CONTENT_LENGTH'} : (stat(STDIN))[7];
+    if ($size > 1024 * $args{'maxsize'}) {
+        print "<h1>Error</h1>\n",
+              "<p>The message size exceeds the $args{'maxsize'} KiB limit.\n",
+              '<p><a href="javascript:history.back(1)">Back</a>';
+        exit;
     }
+    for (param()) { $in{$_} = param($_) }
 
     # trim whitespace in message headers
     for (qw/name email subject/) {
@@ -291,9 +300,6 @@ sub readform {
         $in{$_} =~ s/\s+$//;
         $in{$_} =~ s/\s+/ /g;
     }
-
-    # Windows fix
-    $in{'message'} =~ s/\r\n/\n/g;
 }
 
 sub formcheck {
