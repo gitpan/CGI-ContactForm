@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.30 2003/08/24 11:07:00 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.31 2003/09/13 21:03:34 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -169,6 +169,10 @@ C<Flowed.pm> to those directories.
 
 =over 4
 
+=item v1.16 (Sep 13, 2003)
+
+Mail::Sender errors captured also with the most recent Mail::Sender versions.
+
 =item v1.15 (Aug 24, 2003)
 
 Referer check removed, since it made the script fail with certain browsers
@@ -265,7 +269,7 @@ use CGI 'escapeHTML';
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.15';
+$VERSION = '1.16';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -372,7 +376,7 @@ sub formdata {
     }
 
     # create hash of references to the form data
-    my $o = new CGI(\*STDIN);
+    my $o = new CGI;
     $in{$_} = \$o->{$_}[0] for $o->param;
 
     # trim whitespace in message headers
@@ -410,7 +414,7 @@ sub mailsend {
     # Send message
     $Mail::Sender::NO_X_MAILER = 1;
     $Mail::Sender::SITE_HEADERS = join "\r\n", @extras;
-    (new Mail::Sender) -> MailMsg ({
+    ref (new Mail::Sender -> MailMsg ({
         smtp      => $args{smtp},
         from      => $args{recmail},
         fake_from => namefix(${$in{name}}) . " <${$in{email}}>",
@@ -418,7 +422,7 @@ sub mailsend {
         bcc       => ${$in{email}},
         subject   => ${$in{subject}},
         msg       => ${$in{message}},
-    }) or die "Cannot send mail.\n$Mail::Sender::Error\n";
+    })) or die "Cannot send mail.\n$Mail::Sender::Error\n";
 
     # Print resulting page
     my $sent_to = sprintf escapeHTML($args{sent_to}), '<b>'
