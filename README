@@ -39,6 +39,7 @@ DESCRIPTION
         styleurl            (none)
         returnlinktext      'Main Page'
         returnlinkurl       '/'
+        subject             (none)
         formtmplpath        (none)
         resulttmplpath      (none)
         maxsize             100 (KiB)
@@ -127,14 +128,28 @@ DEPENDENCIES
 
     (can be downloaded from CPAN http://www.cpan.org/ )
 
-    It also requires direct access to an SMTP server.
-
     If "Mail::Sender" and "Text::Flowed" need to be installed manually, you
     shall create "/www/username/cgi-bin/lib/Mail" and
     "/www/username/cgi-bin/lib/Text" and upload "Sender.pm" respective
     "Flowed.pm" to those directories.
 
+AUTHENTICATION
+    If you have access to a mail server that sends messages from a CGI
+    script to any address, you don't need to worry about authentication.
+    Otherwise you need to somehow authenticate to the server.
+
+    The distribution includes a file named "Sender.config". A convenient way
+    to deal with a need for authentication is to edit that file and upload
+    it to the same directory as the one where "Sender.pm" is located. The
+    "Mail::Sender" documentation includes more guidance.
+
 VERSION HISTORY
+    v1.17 (Oct 8, 2003)
+        New argument: 'subject' - for setting a default subject.
+
+        The file "Sender.config" added to the distribution to facilitate
+        authentication to a mail server.
+
     v1.16 (Sep 13, 2003)
         Mail::Sender errors captured also with the most recent Mail::Sender
         versions.

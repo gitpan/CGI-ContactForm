@@ -2,6 +2,7 @@ examples/contact.pl
 examples/ContactForm.css
 examples/ContactForm_form.tmpl
 examples/ContactForm_result.tmpl
+examples/Sender.config
 lib/CGI/ContactForm.pm
 Makefile.PL
 MANIFEST

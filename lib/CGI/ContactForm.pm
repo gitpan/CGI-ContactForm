@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.31 2003/09/13 21:03:34 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.32 2003/10/08 13:32:09 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -46,6 +46,7 @@ C<CGI::ContactForm> takes the following arguments:
     styleurl            (none)
     returnlinktext      'Main Page'
     returnlinkurl       '/'
+    subject             (none)
     formtmplpath        (none)
     resulttmplpath      (none)
     maxsize             100 (KiB)
@@ -158,16 +159,32 @@ C<CGI::ContactForm> requires these modules:
 
 (can be downloaded from CPAN http://www.cpan.org/ )
 
-It also requires direct access to an SMTP server.
-
 If C<Mail::Sender> and C<Text::Flowed> need to be installed manually,
 you shall create C</www/username/cgi-bin/lib/Mail> and
 C</www/username/cgi-bin/lib/Text> and upload C<Sender.pm> respective
 C<Flowed.pm> to those directories.
 
+=head1 AUTHENTICATION
+
+If you have access to a mail server that sends messages from a CGI script
+to any address, you don't need to worry about authentication. Otherwise
+you need to somehow authenticate to the server.
+
+The distribution includes a file named C<Sender.config>. A convenient
+way to deal with a need for authentication is to edit that file and
+upload it to the same directory as the one where C<Sender.pm> is located.
+The C<Mail::Sender> documentation includes more guidance.
+
 =head1 VERSION HISTORY
 
 =over 4
+
+=item v1.17 (Oct 8, 2003)
+
+New argument: 'subject' - for setting a default subject.
+
+The file C<Sender.config> added to the distribution to facilitate
+authentication to a mail server.
 
 =item v1.16 (Sep 13, 2003)
 
@@ -269,7 +286,7 @@ use CGI 'escapeHTML';
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.16';
+$VERSION = '1.17';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -317,6 +334,7 @@ sub arguments {
         styleurl       => '',
         returnlinktext => 'Main Page',
         returnlinkurl  => '/',
+        subject        => '',
         formtmplpath   => '',
         resulttmplpath => '',
         maxsize        => 100,
@@ -388,7 +406,8 @@ sub formdata {
 }
 
 sub formcheck {
-    for (qw/name subject message/) { $error{$_} = ' class="error"' unless ${$in{$_}} }
+    for (qw/name message/) { $error{$_} = ' class="error"' unless ${$in{$_}} }
+    $error{subject} = ' class="error"' unless ${$in{subject}} or $args{subject};
     $error{email} = ' class="error"' if emailsyntax(${$in{email}});
     return %error ? 1 : 0;
 }
@@ -458,6 +477,7 @@ sub formprint {
                       emaillabel subjectlabel msglabel reset send/;
     $args{$_} = escapeHTML($args{$_}) for @formargs;
     $args{returnlinkurl} =~ s/ /%20/g;
+    ${$in{subject}} ||= $args{subject};
     for (qw/name email subject message/) {
         ${$in{$_}} = $in{$_} ? escapeHTML(${$in{$_}}) : '';
         $error{$_} ||= '';
