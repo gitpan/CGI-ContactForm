@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.20 2003/04/04 21:40:35 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.21 2003/04/04 22:25:21 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -152,7 +152,7 @@ C<Flowed.pm> to those directories.
 
 =over 4
 
-=item v1.1 (Apr 4, 2003)
+=item v1.10 (Apr 4, 2003)
 
 Template based customization added as an option.
 
@@ -224,7 +224,7 @@ use CGI qw(param escapeHTML);
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.1';
+$VERSION = '1.10';
 
 use Exporter;
 @ISA = 'Exporter';

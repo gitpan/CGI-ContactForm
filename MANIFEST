@@ -1,5 +1,7 @@
 examples/contact.pl
 examples/ContactForm.css
+examples/ContactForm_form.tmpl
+examples/ContactForm_result.tmpl
 lib/CGI/ContactForm.pm
 Makefile.PL
 MANIFEST
