@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.11 2003/02/12 20:39:18 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.12 2003/02/13 09:08:04 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -124,6 +124,10 @@ located somewhere outside the cgi-bin.
 
 =over 4
 
+=item v1.01 (Feb 13, 2003)
+
+CSS validation error corrected.
+
 =item v1.0 (Feb 12, 2003)
 
 Additional arguments added that makes it possible to have the form display
@@ -177,7 +181,7 @@ use strict;
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.0';
+$VERSION = '1.01';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -350,7 +354,7 @@ RESULT
 
 sub formprint {
     (my $scriptname = $0 ? $0 : $ENV{'SCRIPT_FILENAME'}) =~ s/.*[\/\\]//;
-    my $erroralert = %error ? "<tr>\n<td colspan=\"4\"><p class=\"h_align\">"
+    my $erroralert = %error ? "<tr>\n<td colspan=\"4\"><p class=\"halign\">"
       . sprintf ($args{'erroralert'}, "<span class=\"error\">\n$args{'marked'}</span>")
       . "</p></td>\n</tr>" : '';
     for (qw/name email subject message/) {
@@ -371,7 +375,7 @@ sub formprint {
 <form action="$scriptname" method="post">
 <table cellpadding="3">
 <tr>
-<td colspan="4"><h3 class="h_align">$args{'title'} $args{'recname'}</h3></td>
+<td colspan="4"><h3 class="halign">$args{'title'} $args{'recname'}</h3></td>
 </tr><tr>
 <td><p$error{'name'}>$args{'name'}</p></td><td><input type="text" name="name"
  value="$in{'name'}" size="20" />&nbsp;</td>
@@ -387,7 +391,7 @@ sub formprint {
 <textarea name="message" rows="8" cols="65"$softwrap>$in{'message'}</textarea>
 </td>
 </tr>$erroralert<tr>
-<td colspan="4" class="h_align">
+<td colspan="4" class="halign">
 <input class="button" type="reset" value="$args{'reset'}" />&nbsp;&nbsp;
 <input class="button" type="submit" value="$args{'send'}" /></td>
 </tr><tr>

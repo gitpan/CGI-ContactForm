@@ -101,6 +101,9 @@ EXAMPLES
     style sheet typically needs to be located somewhere outside the cgi-bin.
 
 VERSION HISTORY
+    v1.01 (Feb 13, 2003)
+        CSS validation error corrected.
+
     v1.0 (Feb 12, 2003)
         Additional arguments added that makes it possible to have the form
         display non-English text.
