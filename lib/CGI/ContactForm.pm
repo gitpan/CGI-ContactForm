@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.8 2003/02/09 06:42:29 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.11 2003/02/12 20:39:18 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -8,34 +8,58 @@ CGI::ContactForm - Perl extension for generating a web contact form
 
 =head1 SYNOPSIS
 
-    #!/usr/bin/perl
-    use lib '/path/to/lib';  (For the case this module, or any
-                              module it's dependent on, is installed
-                              in a local library.)
     use CGI::ContactForm;
 
     contactform (
-        recname        => 'John Smith',              \
-        recmail        => 'john.smith@domain.com',    } Compulsory
-        smtp           => 'smtp.domain.com',         /
-
-        styleurl       => '/style/ContactForm.css',  \
-        returnlinktext => 'Back',                     } Optional
-        returnlinkurl  => '/some/url',               /
+        recname        => 'John Smith',
+        recmail        => 'john.smith@domain.com',
+        smtp           => 'smtp.domain.com',
+        styleurl       => '/style/ContactForm.css',
     );
 
 =head1 DESCRIPTION
 
 This module generates a contact form for the web when the routine C<contactform()>
-is called from a CGI script. The CGI script shall consist of just a few lines of
-code like in the example under SYNOPSIS above. The arguments are passed to the
-module as a list of key/value pairs.
+is called from a CGI script. Arguments are passed to the module as a list of
+key/value pairs.
 
 C<CGI::ContactForm> sends a well formated (plain text format=flowed in accordance
 with RFC 2646) email message, with the sender's address in the C<From:> header, and
 the sender gets a C<bcc> copy. If the email address stated by the sender is invalid,
 the failure message is sent to the recipient address, through which you know that
 you don't need to bother with a reply, at least not to that address...
+
+=head2 Arguments
+
+C<CGI::ContactForm> takes the following arguments:
+
+                        Default value
+                        =============
+    Compulsory
+    ----------
+    recname             (none)
+    recmail             (none)
+    smtp                (none)
+
+    Optional
+    --------
+    styleurl            (none)
+    returnlinktext      'Main Page'
+    returnlinkurl       '/'
+
+    Additional arguments, intended for forms at non-English sites
+    -------------------------------------------------------------
+    title               'Send email to'
+    name                'Your name:'
+    email               'Your email:'
+    subject             'Subject:'
+    message             'Message:'
+    reset               'Reset'
+    send                'Send'
+    erroralert          'Fields with %s need to be filled or corrected.'
+    marked              'marked labels'
+    thanks              'Thanks for your message!'
+    sent_to             'The message was sent to %s with a copy to %s.'
 
 =head1 INSTALLATION
 
@@ -54,24 +78,27 @@ Type the following:
 
 =item *
 
-Download and extract the distribution file.
+Download the distribution file and extract the contents.
 
 =item *
 
 Designate a directory as your local library for Perl modules, for instance
 
-    /cgi-bin/lib
+    /www/username/cgi-bin/lib
 
 =item *
 
-Create the directory C</cgi-bin/lib/CGI>, and upload C<ContactForm.pm> to that
-directory.
+Create the directory C</www/username/cgi-bin/lib/CGI>, and upload
+C<ContactForm.pm> to that directory.
+
+=item *
+
+In the CGI scripts that use this module, include a line that tells Perl
+to look for modules also in your local library, such as
+
+    use lib '/www/username/cgi-bin/lib';
 
 =back
-
-If C<Mail::Sender> and C<Text::Flowed> (see DEPENDENCIES below) need to be
-installed manually, you shall create C</cgi-bin/lib/Mail> and C</cgi-bin/lib/Text>
-and upload C<Sender.pm> respective C<Flowed.pm> to those directories.
 
 =head1 DEPENDENCIES
 
@@ -81,6 +108,11 @@ C<CGI::ContactForm> requires these modules, available at CPAN:
     Text::Flowed
 
 It also requires direct access to an SMTP server.
+
+If C<Mail::Sender> and C<Text::Flowed> need to be installed manually,
+you shall create C</www/username/cgi-bin/lib/Mail> and
+C</www/username/cgi-bin/lib/Text> and upload C<Sender.pm> respective
+C<Flowed.pm> to those directories.
 
 =head1 EXAMPLES
 
@@ -92,11 +124,18 @@ located somewhere outside the cgi-bin.
 
 =over 4
 
+=item v1.0 (Feb 12, 2003)
+
+Additional arguments added that makes it possible to have the form display
+non-English text.
+
+Warnings enabled.
+
 =item v0.4 (Feb 9, 2003)
 
 Error alert message added. Also C<ContactForm.css> was modified for this reason.
 
-Test script included in the distribution.
+Simple test script included in the distribution.
 
 =item v0.3 (Feb 7, 2003)
 
@@ -119,7 +158,10 @@ Initial release.
 =head1 LATEST VERSION
 
 The latest version of C<CGI::ContactForm> is available at:
-http://search.cpan.org/author/GUNNAR/ and http://www.gunnar.cc/contactform/
+
+  http://search.cpan.org/author/GUNNAR/
+
+  http://www.gunnar.cc/contactform/
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
@@ -135,13 +177,34 @@ use strict;
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = 0.4;
+$VERSION = '1.0';
 
 use Exporter;
 @ISA = 'Exporter';
 @EXPORT = 'contactform';
 
+my %defaults = (
+    recname        => '',
+    recmail        => '',
+    smtp           => '',
+    styleurl       => '',
+    returnlinktext => 'Main Page',
+    returnlinkurl  => '/',
+    title          => 'Send email to',
+    name           => 'Your&nbsp;name:',
+    email          => 'Your&nbsp;email:',
+    subject        => 'Subject:',
+    message        => 'Message:',
+    reset          => 'Reset',
+    send           => 'Send',
+    erroralert     => 'Fields with %s need to be filled or corrected.',
+    marked         => 'marked labels',
+    thanks         => 'Thanks for your message!',
+    sent_to        => 'The message was sent to %s with a copy to %s.',
+);
+
 sub contactform {
+    local $^W = 1;  # enables warnings
     print "Content-type: text/html; charset=iso-8859-1\n\n";
     arguments (@_);
     if ($ENV{'REQUEST_METHOD'} eq 'POST') {
@@ -153,30 +216,27 @@ sub contactform {
         if ($@) {
             htmlize (my $err = $@);
             $err =~ s/\n/<br>\n/g;
-            exit (print "<h1>Error</h1>\n<tt>", $err);
+            print "<h1>Error</h1>\n<tt>", $err;
         }
     } else {
         formprint();
     }
+    exit;
 }
 
 sub arguments {
     my @error = ();
     {
         # Grabs the key/value pairs and checks that the number of elements isn't odd
-        local $^W = 1;
         local $SIG{__WARN__} = sub { die $_[0] };
-        eval {
-            %args = (
-                returnlinktext => 'Main Page',  # default argument
-                returnlinkurl  => '/',          # "-
-                @_                              # arguments passed from CGI script
-            )
-        };
+        eval { %args = (%defaults, @_) };
         push @error, $@, "The module expects a number of key/value pairs.\n" if $@;
     }
     for (qw/recname recmail smtp/) {
         push @error, "The compulsory argument '$_' is missing.\n" unless $args{$_};
+    }
+    for (keys %args) {
+        push @error, "Unknown argument: '$_'\n" unless defined $defaults{$_};
     }
     if ($args{'recmail'} and emailsyntax ($args{'recmail'}) eq 'ERR') {
         push @error, "'$args{'recmail'}' is not a valid email address.\n";
@@ -276,11 +336,12 @@ sub mailsend {
 
     # Print resulting page
     htmlize ($in{'email'});
+    my $sent_to = sprintf ($args{'sent_to'}, "<b>$args{'recname'}</b>", "<b>$in{'email'}</b>");
     headprint();
 
     print <<RESULT;
-<h3>Thanks for your message!</h3>
-<p>The message was sent to <b>$args{'recname'}</b> with a copy to <b>$in{'email'}</b>.</p>
+<h3>$args{'thanks'}</h3>
+<p>$sent_to</p>
 <p class="returnlink"><a href="$args{'returnlinkurl'}">$args{'returnlinktext'}</a></p>
 </body>
 </html>
@@ -289,9 +350,9 @@ RESULT
 
 sub formprint {
     (my $scriptname = $0 ? $0 : $ENV{'SCRIPT_FILENAME'}) =~ s/.*[\/\\]//;
-    my $erroralert = %error ? "<tr>\n"
-      . '<td colspan="4"><p class="center">Fields with <span class="error">'
-      . "\nmarked labels</span> need to be filled or corrected!</p></td>\n</tr>" : '';
+    my $erroralert = %error ? "<tr>\n<td colspan=\"4\"><p class=\"h_align\">"
+      . sprintf ($args{'erroralert'}, "<span class=\"error\">\n$args{'marked'}</span>")
+      . "</p></td>\n</tr>" : '';
     for (qw/name email subject message/) {
         if ($in{$_}) {
             htmlize ($in{$_});
@@ -310,25 +371,25 @@ sub formprint {
 <form action="$scriptname" method="post">
 <table cellpadding="3">
 <tr>
-<td colspan="4"><h3 class="center">Send email to $args{'recname'}</h3></td>
+<td colspan="4"><h3 class="h_align">$args{'title'} $args{'recname'}</h3></td>
 </tr><tr>
-<td><p$error{'name'}>Your&nbsp;name:</p></td><td><input type="text" name="name"
+<td><p$error{'name'}>$args{'name'}</p></td><td><input type="text" name="name"
  value="$in{'name'}" size="20" />&nbsp;</td>
-<td><p$error{'email'}>Your&nbsp;email:</p></td><td><input type="text" name="email"
+<td><p$error{'email'}>$args{'email'}</p></td><td><input type="text" name="email"
  value="$in{'email'}" size="20" /></td>
 </tr><tr>
-<td><p$error{'subject'}>Subject:</p></td>
+<td><p$error{'subject'}>$args{'subject'}</p></td>
 <td colspan="3"><input type="text" name="subject" value="$in{'subject'}" size="55" /></td>
 </tr><tr>
-<td colspan="4"><p$error{'message'}>Message:</p></td>
+<td colspan="4"><p$error{'message'}>$args{'message'}</p></td>
 </tr><tr>
 <td colspan="4">
 <textarea name="message" rows="8" cols="65"$softwrap>$in{'message'}</textarea>
 </td>
 </tr>$erroralert<tr>
-<td colspan="4" class="center">
-<input class="button" type="reset" value="Reset" />&nbsp;&nbsp;
-<input class="button" type="submit" value="Send" /></td>
+<td colspan="4" class="h_align">
+<input class="button" type="reset" value="$args{'reset'}" />&nbsp;&nbsp;
+<input class="button" type="submit" value="$args{'send'}" /></td>
 </tr><tr>
 <td colspan="4"><p class="returnlink"><a href="$args{'returnlinkurl'}">
 $args{'returnlinktext'}</a></p></td>
@@ -349,7 +410,10 @@ sub headprint {
                       "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>Send email to $args{'recname'}</title>
+<title>$args{'title'} $args{'recname'}</title>
+<style type="text/css">
+.error { font-weight: bold }
+</style>
 $style
 </head>
 <body>
