@@ -1,0 +1,87 @@
+NAME
+    CGI::ContactForm - Perl extension for generating a web contact form
+
+SYNOPSIS
+        #!/usr/bin/perl
+        use lib '/path/to/lib';  (For the case this module, or any
+                                  module it's dependent on, is installed
+                                  in a local library.)
+        use CGI::ContactForm;
+
+        contactform (
+            recname        => 'John Smith',              \
+            recmail        => 'john.smith@domain.com',    } Compulsory
+            smtp           => 'smtp.domain.com',         /
+
+            styleurl       => '/style/ContactForm.css',  \
+            returnlinktext => 'Back',                     } Optional
+            returnlinkurl  => '/some/url',               /
+        );
+
+DESCRIPTION
+    This module generates a contact form for the web when the routine
+    "contactform()" is called from a CGI script. The CGI script shall
+    consist of just a few lines of code like in the example under SYNOPSIS
+    above. The arguments are passed to the module as a list of key/value
+    pairs.
+
+    "CGI::ContactForm" sends a well formated (plain text format=flowed in
+    accordance with RFC 2646) email message, with the sender's address in
+    the "From:" header, and the sender gets a "bcc" copy. If the email
+    address stated by the sender is invalid, the failure message is sent to
+    the recipient address, through which you know that you don't need to
+    bother with a reply, at least not to that address...
+
+INSTALLATION
+  Installation with Makefile.PL
+
+    Type the following:
+
+        perl Makefile.PL
+        make
+        make install
+
+  Manual Installation
+
+    *   Download and extract the distribution file.
+
+    *   Designate a directory as your local library for Perl modules, for
+        instance
+
+            /cgi-bin/lib
+
+    *   Create the directory "/cgi-bin/lib/CGI", and upload "ContactForm.pm"
+        to that directory.
+
+    If "Mail::Sender" and "Text::Flowed" (see DEPENDENCIES below) need to be
+    installed manually, you shall create "/cgi-bin/lib/Mail" and
+    "/cgi-bin/lib/Text" and upload "Sender.pm" respective "Flowed.pm" to
+    those directories.
+
+DEPENDENCIES
+    "CGI::ContactForm" requires these modules, available at CPAN:
+
+        Mail::Sender
+        Text::Flowed
+
+    It also requires direct access to an SMTP server.
+
+EXAMPLES
+    An example CGI script ("contact.pl") and a style sheet
+    ("ContactForm.css") are included in the distribution.
+
+VERSION HISTORY
+    v0.1 (Feb 3, 2003)
+        Initial release.
+
+LATEST VERSION
+    The latest version of "CGI::ContactForm" is available at:
+    http://www.gunnar.cc/contactform/
+
+AUTHOR
+      Copyright © 2003 Gunnar Hjalmarsson
+      http://www.gunnar.cc/cgi-bin/contact.pl
+
+    This module is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
