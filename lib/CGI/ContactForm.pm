@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.6 2003/02/07 11:06:50 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.8 2003/02/09 06:42:29 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -45,6 +45,7 @@ Type the following:
 
     perl Makefile.PL
     make
+    make test
     make install
 
 =head2 Manual Installation
@@ -91,11 +92,17 @@ located somewhere outside the cgi-bin.
 
 =over 4
 
+=item v0.4 (Feb 9, 2003)
+
+Error alert message added. Also C<ContactForm.css> was modified for this reason.
+
+Test script included in the distribution.
+
 =item v0.3 (Feb 7, 2003)
 
 Check of email syntax modified (hopefully now closer to RFC 822).
 
-Better structured code, which now should be more easy to follow.
+Better structured code.
 
 =item v0.2 (Feb 5, 2003)
 
@@ -112,7 +119,7 @@ Initial release.
 =head1 LATEST VERSION
 
 The latest version of C<CGI::ContactForm> is available at:
-http://search.cpan.org/author/GUNNAR/
+http://search.cpan.org/author/GUNNAR/ and http://www.gunnar.cc/contactform/
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
@@ -128,7 +135,7 @@ use strict;
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = 0.3;
+$VERSION = 0.4;
 
 use Exporter;
 @ISA = 'Exporter';
@@ -225,18 +232,11 @@ sub readform {
 sub formcheck {
     return '' unless $in{'raw'};
     %error = ();
-    my $err;
     for (qw/name subject message/) {
-        unless ($in{$_}) {
-            $error{$_} = ' class="error"';
-            $err = 1;
-        }
+        $error{$_} = ' class="error"' unless $in{$_};
     }
-    if (emailsyntax ($in{'email'}) eq 'ERR') {
-        $error{'email'} = ' class="error"';
-        $err = 1;
-    }
-    return $err ? '' : 'OK';
+    $error{'email'} = ' class="error"' if emailsyntax ($in{'email'}) eq 'ERR';
+    return %error ? '' : 'OK';
 }
 
 sub emailsyntax {
@@ -289,6 +289,9 @@ RESULT
 
 sub formprint {
     (my $scriptname = $0 ? $0 : $ENV{'SCRIPT_FILENAME'}) =~ s/.*[\/\\]//;
+    my $erroralert = %error ? "<tr>\n"
+      . '<td colspan="4"><p class="center">Fields with <span class="error">'
+      . "\nmarked labels</span> need to be filled or corrected!</p></td>\n</tr>" : '';
     for (qw/name email subject message/) {
         if ($in{$_}) {
             htmlize ($in{$_});
@@ -322,7 +325,7 @@ sub formprint {
 <td colspan="4">
 <textarea name="message" rows="8" cols="65"$softwrap>$in{'message'}</textarea>
 </td>
-</tr><tr>
+</tr>$erroralert<tr>
 <td colspan="4" class="center">
 <input class="button" type="reset" value="Reset" />&nbsp;&nbsp;
 <input class="button" type="submit" value="Send" /></td>

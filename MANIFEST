@@ -4,3 +4,4 @@ lib/CGI/ContactForm.pm
 Makefile.PL
 MANIFEST
 README
+test.pl
