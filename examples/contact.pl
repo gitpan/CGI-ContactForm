@@ -1,6 +1,7 @@
 #!/usr/bin/perl -T
-use lib '/www/jsmith/cgi-bin/lib';
+use CGI::Carp 'fatalsToBrowser';
 
+use lib '/www/jsmith/cgi-bin/lib';
 use CGI::ContactForm;
 
 contactform (
@@ -10,4 +11,4 @@ contactform (
     styleurl  => '/style/ContactForm.css',
 );
 
-# $Id: contact.pl,v 1.3 2003/02/12 19:35:06 Gunnar Hjalmarsson Exp $
+# $Id: contact.pl,v 1.4 2003/04/04 21:31:28 Gunnar Hjalmarsson Exp $

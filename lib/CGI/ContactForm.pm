@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.16 2003/03/30 20:06:30 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.20 2003/04/04 21:40:35 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -46,15 +46,17 @@ C<CGI::ContactForm> takes the following arguments:
     styleurl            (none)
     returnlinktext      'Main Page'
     returnlinkurl       '/'
+    formtmplpath        (none)
+    resulttmplpath      (none)
     maxsize             100 (KiB)
 
     Additional arguments, intended for forms at non-English sites
     -------------------------------------------------------------
     title               'Send email to'
-    name                'Your name:'
-    email               'Your email:'
-    subject             'Subject:'
-    message             'Message:'
+    namelabel           'Your name:'
+    emaillabel          'Your email:'
+    subjectlabel        'Subject:'
+    msglabel            'Message:'
     reset               'Reset'
     send                'Send'
     erroralert          'Fields with %s need to be filled or corrected.'
@@ -62,6 +64,23 @@ C<CGI::ContactForm> takes the following arguments:
     thanks              'Thanks for your message!'
     sent_to             'The message was sent to %s with a copy to %s.'
     encoding            'iso-8859-1'
+
+=head2 Customization
+
+There are only three compulsory arguments. The example CGI script
+C<contact.pl>, that is included in the distribution, also sets the C<styleurl>
+argument, assuming the use of the enclosed style sheet C<ContactForm.css>.
+That results in a decently styled form with a minimum of effort.
+
+As you can see from the list over available arguments, all the text strings
+can be changed, and as regards the presentation, you can of course edit the
+style sheet to your liking.
+
+If you want to modify the HTML markup, you can have C<CGI::ContactForm> make
+use of one or two templates. The enclosed example templates
+C<ContactForm_form.tmpl> and C<ContactForm_result.tmpl> can be activated via
+the C<formtmplpath> respective C<resulttmplpath> arguments, and used as a
+starting point for a customized markup.
 
 =head1 INSTALLATION
 
@@ -102,12 +121,25 @@ to look for modules also in your local library, such as
 
 =back
 
+=head2 Other installation matters
+
+If you have previous experience from installing CGI scripts, making
+C<contact.pl> (or whichever name you choose) work should be easy.
+Otherwise there are many CGI tutorials for beginners available on the web.
+
+On some servers, the CGI file must be located in the C<cgi-bin> directory
+(or in a C<cgi-bin> subdirectory). At the same time it's worth noting,
+that the style sheet typically needs to be located somewhere outside the
+C<cgi-bin>.
+
 =head1 DEPENDENCIES
 
-C<CGI::ContactForm> requires these modules, available at CPAN:
+C<CGI::ContactForm> requires these modules:
 
     Mail::Sender
     Text::Flowed
+
+(can be downloaded from CPAN http://www.cpan.org/ )
 
 It also requires direct access to an SMTP server.
 
@@ -116,15 +148,13 @@ you shall create C</www/username/cgi-bin/lib/Mail> and
 C</www/username/cgi-bin/lib/Text> and upload C<Sender.pm> respective
 C<Flowed.pm> to those directories.
 
-=head1 EXAMPLES
-
-An example CGI script (C<contact.pl>) and a style sheet (C<ContactForm.css>) are
-included in the distribution. Note that the style sheet typically needs to be
-located somewhere outside the cgi-bin.
-
 =head1 VERSION HISTORY
 
 =over 4
+
+=item v1.1 (Apr 4, 2003)
+
+Template based customization added as an option.
 
 =item v1.03 (Mar 30, 2003)
 
@@ -190,11 +220,11 @@ under the same terms as Perl itself.
 =cut
 
 use strict;
-use CGI 'param';
+use CGI qw(param escapeHTML);
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.03';
+$VERSION = '1.1';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -209,7 +239,8 @@ sub contactform {
         if (formcheck() eq 'OK') {
             eval { mailsend() };
             if ($@) {
-                (my $err = htmlize ($@)) =~ s/\n/<br>\n/g;
+                my $err = $@;
+                ($err = escapeHTML ($err)) =~ s/\n/<br>\n/g;
                 print "<h1>Error</h1>\n<tt>", $err;
             }
             exit;
@@ -227,12 +258,14 @@ sub arguments {
         styleurl       => '',
         returnlinktext => 'Main Page',
         returnlinkurl  => '/',
+        formtmplpath   => '',
+        resulttmplpath => '',
         maxsize        => 100,
         title          => 'Send email to',
-        name           => 'Your&nbsp;name:',
-        email          => 'Your&nbsp;email:',
-        subject        => 'Subject:',
-        message        => 'Message:',
+        namelabel      => 'Your name:',
+        emaillabel     => 'Your email:',
+        subjectlabel   => 'Subject:',
+        msglabel       => 'Message:',
         reset          => 'Reset',
         send           => 'Send',
         erroralert     => 'Fields with %s need to be filled or corrected.',
@@ -255,6 +288,11 @@ sub arguments {
     }
     if ($args{'recmail'} and emailsyntax ($args{'recmail'}) eq 'ERR') {
         push @error, "'$args{'recmail'}' is not a valid email address.\n";
+    }
+    for ('formtmplpath', 'resulttmplpath') {
+        if ($args{$_} and !-f $args{$_}) {
+            push @error, "Argument '$_': Can't find the file $args{$_}\n";
+        }
     }
     print "Content-type: text/html; charset=$args{'encoding'}\n\n";
     if (@error) {
@@ -345,49 +383,80 @@ sub mailsend {
     }) or die "Cannot send mail.\n$Mail::Sender::Error\n";
 
     # Print resulting page
-    $in{'email'} = htmlize ($in{'email'});
-    my $sent_to = sprintf $args{'sent_to'}, "<b>$args{'recname'}</b>", "<b>$in{'email'}</b>";
-    headprint();
+    my $sent_to = sprintf escapeHTML ($args{'sent_to'}), '<b>'
+      . escapeHTML ($args{'recname'}) . '</b>', '<b>' . escapeHTML ($in{'email'}) . '</b>';
+    my @resultargs = qw/recname returnlinktext returnlinkurl title thanks/;
+    for (@resultargs) { $args{$_} = escapeHTML ($args{$_}) }
+    $args{'returnlinkurl'} =~ s/ /%20/g;
+    if ($args{'resulttmplpath'}) {
+        my $style = stylesheet();
+        my %result_vars = ();
+        $result_vars{'style'} = \$style;
+        $result_vars{'sent_to'} = \$sent_to;
+        for (@resultargs) { $result_vars{$_} = \$args{$_} }
+        templateprint ($args{'resulttmplpath'}, %result_vars);
+    } else {
+        headprint();
 
-    print <<RESULT;
-<h3>$args{'thanks'}</h3>
+        print <<RESULT;
+<h1>$args{'thanks'}</h1>
 <p>$sent_to</p>
 <p class="returnlink"><a href="$args{'returnlinkurl'}">$args{'returnlinktext'}</a></p>
 </body>
 </html>
 RESULT
+    }
 }
 
 sub formprint {
     (my $scriptname = $0 ? $0 : $ENV{'SCRIPT_FILENAME'}) =~ s/.*[\/\\]//;
     my $erroralert = %error ? "<tr>\n<td colspan=\"4\"><p class=\"halign\">"
-      . sprintf ($args{'erroralert'}, "<span class=\"error\">\n$args{'marked'}</span>")
-      . "</p></td>\n</tr>" : '';
+      . sprintf (escapeHTML ($args{'erroralert'}), "<span class=\"error\">\n"
+      . escapeHTML ($args{'marked'}) . '</span>') . "</p></td>\n</tr>" : '';
+    my @formargs = qw/recname returnlinktext returnlinkurl title namelabel
+                      emaillabel subjectlabel msglabel reset send/;
+    for (@formargs) { $args{$_} = escapeHTML ($args{$_}) }
+    $args{'returnlinkurl'} =~ s/ /%20/g;
     for (qw/name email subject message/) {
-        $in{$_} = $in{$_} ? htmlize ($in{$_}) : '';
+        $in{$_} = $in{$_} ? escapeHTML ($in{$_}) : '';
         $error{$_} = '' unless $error{$_};
     }
-    headprint();
 
     # Prevent horizontal scrolling in NS4
     my $softwrap = ($ENV{'HTTP_USER_AGENT'} =~ /Mozilla\/[34]/
       and $ENV{'HTTP_USER_AGENT'} !~ /MSIE|Opera/) ? ' wrap="soft"' : '';
 
-    print <<FORM;
+    if ($args{'formtmplpath'}) {
+        my $style = stylesheet();
+        my %form_vars = ();
+        $form_vars{'style'} = \$style;
+        $form_vars{'scriptname'} = \$scriptname;
+        $form_vars{'erroralert'} = \$erroralert;
+        for (@formargs) { $form_vars{$_} = \$args{$_} }
+        for (qw/name email subject message/) {
+            $form_vars{$_} = \$in{$_};
+            $form_vars{$_.'error'} = \$error{$_};
+        }
+        $form_vars{'softwrap'} = \$softwrap;
+        templateprint ($args{'formtmplpath'}, %form_vars);
+    } else {
+        headprint();
+
+        print <<FORM;
 <form action="$scriptname" method="post">
 <table cellpadding="3">
 <tr>
-<td colspan="4"><h3 class="halign">$args{'title'} $args{'recname'}</h3></td>
+<td colspan="4"><h1 class="halign">$args{'title'} $args{'recname'}</h1></td>
 </tr><tr>
-<td><p$error{'name'}>$args{'name'}</p></td><td><input type="text" name="name"
+<td><p$error{'name'}>$args{'namelabel'}</p></td><td><input type="text" name="name"
  value="$in{'name'}" size="20" />&nbsp;</td>
-<td><p$error{'email'}>$args{'email'}</p></td><td><input type="text" name="email"
+<td><p$error{'email'}>$args{'emaillabel'}</p></td><td><input type="text" name="email"
  value="$in{'email'}" size="20" /></td>
 </tr><tr>
-<td><p$error{'subject'}>$args{'subject'}</p></td>
+<td><p$error{'subject'}>$args{'subjectlabel'}</p></td>
 <td colspan="3"><input type="text" name="subject" value="$in{'subject'}" size="55" /></td>
 </tr><tr>
-<td colspan="4"><p$error{'message'}>$args{'message'}</p></td>
+<td colspan="4"><p$error{'message'}>$args{'msglabel'}</p></td>
 </tr><tr>
 <td colspan="4">
 <textarea name="message" rows="8" cols="65"$softwrap>$in{'message'}</textarea>
@@ -405,11 +474,11 @@ $args{'returnlinktext'}</a></p></td>
 </body>
 </html>
 FORM
+    }
 }
 
 sub headprint {
-    my $style = $args{'styleurl'} ?
-      "<link rel=\"stylesheet\" type=\"text/css\" href=\"$args{'styleurl'}\" />" : '';
+    my $style = stylesheet();
 
     print <<HEAD;
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
@@ -426,13 +495,34 @@ $style
 HEAD
 }
 
-sub htmlize {
-    my $value = shift;
-    $value =~ s/&/&amp;/g;
-    $value =~ s/"/&quot;/g;
-    $value =~ s/</&lt;/g;
-    $value =~ s/>/&gt;/g;
-    $value
+sub stylesheet {
+    ($args{'styleurl'} = escapeHTML ($args{'styleurl'})) =~ s/ /%20/g;
+    return $args{'styleurl'} ? '<link rel="stylesheet" type="text/css" href="'
+      . "$args{'styleurl'}\" />" : '';
+}
+
+sub templateprint {
+    my ($template, %tmpl_vars) = @_;
+    my @error = ();
+    open FH, $template or die "Can't open $template\n$!";
+    my $output = join '', <FH>;
+    close FH;
+    $output =~ s[<(?:!--\s*)?tmpl_var\s*(?:name\s*=\s*)?
+                 (?:"([^">]*)"|'([^'>]*)'|([^\s=>]*))
+                 \s*(?:--)?>][
+        my $value = $1 ? $1 : ($2 ? $2 : $3);
+        if ($tmpl_vars{lc $value}) {
+            ${$tmpl_vars{lc $value}};
+        } else {
+            push @error, "Unknown template variable: '$value'\n";
+        }
+    ]egix;
+    if (@error) {
+        print "<h1>Error</h1>\n<pre>";
+        for (@error) { print }
+        exit;
+    }
+    print $output;
 }
 
 sub namefix {

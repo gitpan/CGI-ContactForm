@@ -1,14 +1,20 @@
-/* $Id: ContactForm.css,v 1.4 2003/02/13 09:07:01 Gunnar Hjalmarsson Exp $ */
+/* $Id: ContactForm.css,v 1.5 2003/04/04 14:07:53 Gunnar Hjalmarsson Exp $ */
 
-p, h3, body { font-family: arial, helvetica, sans-serif }
+p, h1, body { font-family: arial, helvetica, sans-serif }
 p, body { background: #f0f0f0; color: black }
 body { margin-left: 15% }
-h3 { background: #f0f0f0; color: #4c5ea8 }
+h1 {
+    background: #f0f0f0;
+    color: #4c5ea8;
+    font-size: 19px;
+    margin-top: 0.7em;
+    margin-bottom: 0.5em;
+}
 input, textarea {
     font-family: 'courier new', monospace;
     font-size: 14px;
     background: white;
-    color: black
+    color: black;
 }
 p { font-size: 14px; margin-top: 0; margin-bottom: 0.1em }
 p.returnlink { margin-top: 1em }
@@ -21,7 +27,7 @@ input.button {
     font-weight: bold;
     padding-top: 0.1em;
     background: #ddeeff;
-    color: black
+    color: black;
 }
 input.button:hover { background: white; color: black }
 a         { color: #4c5ea8; background: none }

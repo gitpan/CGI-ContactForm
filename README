@@ -39,15 +39,17 @@ DESCRIPTION
         styleurl            (none)
         returnlinktext      'Main Page'
         returnlinkurl       '/'
+        formtmplpath        (none)
+        resulttmplpath      (none)
         maxsize             100 (KiB)
 
         Additional arguments, intended for forms at non-English sites
         -------------------------------------------------------------
         title               'Send email to'
-        name                'Your name:'
-        email               'Your email:'
-        subject             'Subject:'
-        message             'Message:'
+        namelabel           'Your name:'
+        emaillabel          'Your email:'
+        subjectlabel        'Subject:'
+        msglabel            'Message:'
         reset               'Reset'
         send                'Send'
         erroralert          'Fields with %s need to be filled or corrected.'
@@ -55,6 +57,23 @@ DESCRIPTION
         thanks              'Thanks for your message!'
         sent_to             'The message was sent to %s with a copy to %s.'
         encoding            'iso-8859-1'
+
+  Customization
+    There are only three compulsory arguments. The example CGI script
+    "contact.pl", that is included in the distribution, also sets the
+    "styleurl" argument, assuming the use of the enclosed style sheet
+    "ContactForm.css". That results in a decently styled form with a minimum
+    of effort.
+
+    As you can see from the list over available arguments, all the text
+    strings can be changed, and as regards the presentation, you can of
+    course edit the style sheet to your liking.
+
+    If you want to modify the HTML markup, you can have "CGI::ContactForm"
+    make use of one or two templates. The enclosed example templates
+    "ContactForm_form.tmpl" and "ContactForm_result.tmpl" can be activated
+    via the "formtmplpath" respective "resulttmplpath" arguments, and used
+    as a starting point for a customized markup.
 
 INSTALLATION
   Installation with Makefile.PL
@@ -81,11 +100,24 @@ INSTALLATION
 
             use lib '/www/username/cgi-bin/lib';
 
+  Other installation matters
+    If you have previous experience from installing CGI scripts, making
+    "contact.pl" (or whichever name you choose) work should be easy.
+    Otherwise there are many CGI tutorials for beginners available on the
+    web.
+
+    On some servers, the CGI file must be located in the "cgi-bin" directory
+    (or in a "cgi-bin" subdirectory). At the same time it's worth noting,
+    that the style sheet typically needs to be located somewhere outside the
+    "cgi-bin".
+
 DEPENDENCIES
-    "CGI::ContactForm" requires these modules, available at CPAN:
+    "CGI::ContactForm" requires these modules:
 
         Mail::Sender
         Text::Flowed
+
+    (can be downloaded from CPAN http://www.cpan.org/ )
 
     It also requires direct access to an SMTP server.
 
@@ -94,12 +126,10 @@ DEPENDENCIES
     "/www/username/cgi-bin/lib/Text" and upload "Sender.pm" respective
     "Flowed.pm" to those directories.
 
-EXAMPLES
-    An example CGI script ("contact.pl") and a style sheet
-    ("ContactForm.css") are included in the distribution. Note that the
-    style sheet typically needs to be located somewhere outside the cgi-bin.
-
 VERSION HISTORY
+    v1.10 (Apr 4, 2003)
+        Template based customization added as an option.
+
     v1.03 (Mar 30, 2003)
         CGI.pm used for parsing form data.
 
