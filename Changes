@@ -1,10 +1,16 @@
 Version history for Perl extension CGI::ContactForm.
 
+v1.21 (Mar 14, 2004)
+    Default value 'localhost' for the 'smtp' argument.
+
 v1.20 (Jan 12, 2004)
     Creation of the module CGI::ContactForm::MHonArc for interacting
     with a MHonArc mail archive.
 
     Use of File::Basename and File::Spec for increased portability.
+
+    New argument: 'bouncetosender' - for directing bounce messages to
+    the sender instead of the recipient.
 
 v1.18 (Oct 18, 2003)
     Improved documentation of mail server authentication.

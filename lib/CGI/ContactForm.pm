@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.20';
-# $Id: ContactForm.pm,v 1.38 2004/01/12 17:49:35 Gunnar Hjalmarsson Exp $
+$VERSION = '1.21';
+# $Id: ContactForm.pm,v 1.39 2004/03/15 01:11:19 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -14,7 +14,6 @@ CGI::ContactForm - Perl extension for generating a web contact form
     contactform (
         recname         => 'John Smith',
         recmail         => 'john.smith@domain.com',
-        smtp            => 'smtp.domain.com',
         styleurl        => '/style/ContactForm.css',
     );
 
@@ -40,10 +39,10 @@ C<CGI::ContactForm> takes the following arguments:
     ----------
     recname             (none)
     recmail             (none)
-    smtp                (none)
 
     Optional
     --------
+    smtp                'localhost'
     styleurl            (none)
     returnlinktext      'Main Page'
     returnlinkurl       '/'
@@ -70,10 +69,14 @@ C<CGI::ContactForm> takes the following arguments:
 
 =head2 Customization
 
-There are only three compulsory arguments. The example CGI script
+There are only two compulsory arguments. The example CGI script
 C<contact.pl>, that is included in the distribution, also uses the C<styleurl>
 argument, assuming the use of the enclosed style sheet C<ContactForm.css>.
 That results in a decently styled form with a minimum of effort.
+
+If the default value C<localhost> isn't sufficient to identify the local SMTP
+server, you may need to explicitly state its host name or IP address via the
+C<smtp> argument.
 
 As you can see from the list over available arguments, all the text strings
 can be changed, and as regards the presentation, you can of course edit the
@@ -255,7 +258,7 @@ sub arguments {
     my %defaults = (
         recname        => '',
         recmail        => '',
-        smtp           => '',
+        smtp           => 'localhost',
         styleurl       => '',
         returnlinktext => 'Main Page',
         returnlinkurl  => '/',
@@ -283,7 +286,7 @@ sub arguments {
         eval { %args = (%defaults, @_) };
         $error .= "$@The module expects a number of key/value pairs.\n" if $@;
     }
-    for (qw/recname recmail smtp/) {
+    for (qw/recname recmail/) {
         $error .= "The compulsory argument '$_' is missing.\n" unless $args{$_};
     }
     for (keys %args) {
@@ -298,14 +301,13 @@ sub arguments {
         }
     }
 
-    CFdie("<pre>$error" . <<EXAMPLE
+    CFdie("<pre>$error" . <<'EXAMPLE'
 
 Example:
 
     contactform (
         recname => 'John Smith',
-        recmail => 'john.smith\@domain.com',
-        smtp    => 'smtp.domain.com',
+        recmail => 'john.smith@domain.com',
     );
 EXAMPLE
 

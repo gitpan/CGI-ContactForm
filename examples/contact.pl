@@ -7,8 +7,7 @@ use CGI::ContactForm;
 contactform (
     recname   => 'John Smith',
     recmail   => 'john.smith@domain.com',
-    smtp      => 'smtp.domain.com',
     styleurl  => '/style/ContactForm.css',
 );
 
-# $Id: contact.pl,v 1.4 2003/04/04 21:31:28 Gunnar Hjalmarsson Exp $
+# $Id: contact.pl,v 1.5 2004/03/15 01:09:12 Gunnar Hjalmarsson Exp $

@@ -1,7 +1,7 @@
 package CGI::ContactForm::MHonArc;
 
-$VERSION = '1.00';
-# $Id: MHonArc.pm,v 1.3 2004/01/12 17:56:57 Gunnar Hjalmarsson Exp $
+$VERSION = '1.01';
+# $Id: MHonArc.pm,v 1.4 2004/03/15 01:10:00 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -17,7 +17,6 @@ CGI::ContactForm::MHonArc - Contact the message authors in a MHonArc archive
     contactform (
         recname         => $msg->{fromname},
         recmail         => $msg->{fromaddr},
-        smtp            => 'smtp.domain.com',
         styleurl        => '/style/ContactForm.css',
         returnlinktext  => 'Messages by Date',
         returnlinkurl   => '/archive/maillist.html',
