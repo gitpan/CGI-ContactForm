@@ -135,6 +135,9 @@ DEPENDENCIES
     "Flowed.pm" to those directories.
 
 VERSION HISTORY
+    v1.12 (Apr 11, 2003)
+        References to the form data for saving memory.
+
     v1.11 (Apr 6, 2003)
         Markup for 'erroralert' modified for greater flexibility when
         editing the form template.

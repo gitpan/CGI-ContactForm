@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.23 2003/04/06 02:28:18 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.24 2003/04/11 13:14:23 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -169,6 +169,10 @@ C<Flowed.pm> to those directories.
 
 =over 4
 
+=item v1.12 (Apr 11, 2003)
+
+References to the form data for saving memory.
+
 =item v1.11 (Apr 6, 2003)
 
 Markup for 'erroralert' modified for greater flexibility when editing the
@@ -244,11 +248,11 @@ under the same terms as Perl itself.
 =cut
 
 use strict;
-use CGI 'escapeHTML';
+use CGI qw(param escapeHTML);
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.11';
+$VERSION = '1.12';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -355,19 +359,21 @@ sub formdata {
               '<p><a href="javascript:history.back(1)">Back</a>';
         CFexit();
     }
-    tie %in, 'CGI';
+
+    # create hash of references to the form data
+    for (param()) { $in{$_} = \param($_) }
 
     # trim whitespace in message headers
     for (qw/name email subject/) {
-        $in{$_} =~ s/^\s+//;
-        $in{$_} =~ s/\s+$//;
-        $in{$_} =~ s/\s+/ /g;
+        ${$in{$_}} =~ s/^\s+//;
+        ${$in{$_}} =~ s/\s+$//;
+        ${$in{$_}} =~ s/\s+/ /g;
     }
 }
 
 sub formcheck {
-    for (qw/name subject message/) { $error{$_} = ' class="error"' unless $in{$_} }
-    $error{'email'} = ' class="error"' if emailsyntax ($in{'email'}) eq 'ERR';
+    for (qw/name subject message/) { $error{$_} = ' class="error"' unless ${$in{$_}} }
+    $error{'email'} = ' class="error"' if emailsyntax (${$in{'email'}}) eq 'ERR';
     return %error ? '' : 'OK';
 }
 
@@ -388,7 +394,7 @@ sub mailsend {
     # Make message format=flowed (RFC 2646)
     require Text::Flowed;
     import Text::Flowed 'reformat';
-    $in{'message'} = reformat ($in{'message'}, { max_length => 66, opt_length => 66 });
+    ${$in{'message'}} = reformat (${$in{'message'}}, { max_length => 66, opt_length => 66 });
     push @extras, 'MIME-Version: 1.0';
     push @extras, "Content-type: text/plain; charset=$args{'encoding'}; format=flowed";
 
@@ -399,16 +405,16 @@ sub mailsend {
     (new Mail::Sender) -> MailMsg ({
         smtp      => $args{'smtp'},
         from      => $args{'recmail'},
-        fake_from => namefix ($in{'name'}) . " <$in{'email'}>",
+        fake_from => namefix (${$in{'name'}}) . " <${$in{'email'}}>",
         to        => namefix ($args{'recname'}) . " <$args{'recmail'}>",
-        bcc       => $in{'email'},
-        subject   => $in{'subject'},
-        msg       => $in{'message'},
+        bcc       => ${$in{'email'}},
+        subject   => ${$in{'subject'}},
+        msg       => ${$in{'message'}},
     }) or die "Cannot send mail.\n$Mail::Sender::Error\n";
 
     # Print resulting page
     my $sent_to = sprintf escapeHTML ($args{'sent_to'}), '<b>'
-      . escapeHTML ($args{'recname'}) . '</b>', '<b>' . escapeHTML ($in{'email'}) . '</b>';
+      . escapeHTML ($args{'recname'}) . '</b>', '<b>' . escapeHTML (${$in{'email'}}) . '</b>';
     my @resultargs = qw/recname returnlinktext returnlinkurl title thanks/;
     for (@resultargs) { $args{$_} = escapeHTML ($args{$_}) }
     $args{'returnlinkurl'} =~ s/ /%20/g;
@@ -442,7 +448,7 @@ sub formprint {
     for (@formargs) { $args{$_} = escapeHTML ($args{$_}) }
     $args{'returnlinkurl'} =~ s/ /%20/g;
     for (qw/name email subject message/) {
-        $in{$_} = $in{$_} ? escapeHTML ($in{$_}) : '';
+        ${$in{$_}} = $in{$_} ? escapeHTML (${$in{$_}}) : '';
         $error{$_} = '' unless $error{$_};
     }
 
@@ -458,7 +464,7 @@ sub formprint {
         $form_vars{'erroralert'} = \$erroralert;
         for (@formargs) { $form_vars{$_} = \$args{$_} }
         for (qw/name email subject message/) {
-            $form_vars{$_} = \$in{$_};
+            $form_vars{$_} = $in{$_};
             $form_vars{$_.'error'} = \$error{$_};
         }
         $form_vars{'softwrap'} = \$softwrap;
@@ -473,17 +479,17 @@ sub formprint {
 <td colspan="4"><h1 class="halign">$args{'title'} $args{'recname'}</h1></td>
 </tr><tr>
 <td><p$error{'name'}>$args{'namelabel'}</p></td><td><input type="text" name="name"
- value="$in{'name'}" size="20" />&nbsp;</td>
+ value="${$in{'name'}}" size="20" />&nbsp;</td>
 <td><p$error{'email'}>$args{'emaillabel'}</p></td><td><input type="text" name="email"
- value="$in{'email'}" size="20" /></td>
+ value="${$in{'email'}}" size="20" /></td>
 </tr><tr>
 <td><p$error{'subject'}>$args{'subjectlabel'}</p></td>
-<td colspan="3"><input type="text" name="subject" value="$in{'subject'}" size="55" /></td>
+<td colspan="3"><input type="text" name="subject" value="${$in{'subject'}}" size="55" /></td>
 </tr><tr>
 <td colspan="4"><p$error{'message'}>$args{'msglabel'}</p></td>
 </tr><tr>
 <td colspan="4">
-<textarea name="message" rows="8" cols="65"$softwrap>$in{'message'}</textarea>
+<textarea name="message" rows="8" cols="65"$softwrap>${$in{'message'}}</textarea>
 </td>
 </tr><tr>
 <td colspan="4" class="halign">
