@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.32 2003/10/08 13:32:09 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.35 2003/10/18 20:18:45 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -166,18 +166,36 @@ C<Flowed.pm> to those directories.
 
 =head1 AUTHENTICATION
 
-If you have access to a mail server that sends messages from a CGI script
-to any address, you don't need to worry about authentication. Otherwise
-you need to somehow authenticate to the server.
+If you have access to a mail server that is configured to automatically
+accept sending messages from a CGI script to any address, you don't need
+to worry about authentication. Otherwise you need to somehow authenticate
+to the server, for instance by adding something like this right after the
+C<use CGI::ContactForm;> line in C<contact.pl>:
 
-The distribution includes a file named C<Sender.config>. A convenient
-way to deal with a need for authentication is to edit that file and
-upload it to the same directory as the one where C<Sender.pm> is located.
-The C<Mail::Sender> documentation includes more guidance.
+    %Mail::Sender::default = (
+        auth      => 'LOGIN',
+        authid    => 'username',
+        authpwd   => 'password',
+    );
+
+C<auth> is the SMTP authentication protocol. Common protocols are C<LOGIN>
+and C<PLAIN>. You may need help from the mail server's administrator to
+find out which protocol and username/password pair to use.
+
+If there are multiple forms, a more convenient way to deal with a need
+for authentication may be to make use of the C<Sender.config> file that
+is included in the distribution. You just edit it and upload it to the
+same directory as the one where C<Sender.pm> is located.
+
+See the C<Mail::Sender> documentation for further guidance.
 
 =head1 VERSION HISTORY
 
 =over 4
+
+=item v1.18 (Oct 18, 2003)
+
+Improved documentation of mail server authentication.
 
 =item v1.17 (Oct 8, 2003)
 
@@ -286,7 +304,7 @@ use CGI 'escapeHTML';
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.17';
+$VERSION = '1.18';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -310,20 +328,18 @@ BEGIN {
 }
 
 sub contactform {
-    MAIN: {
-        local $^W = 1;  # enables warnings
-        %args = %in = %error = ();
-        arguments(@_);
-        if ($ENV{REQUEST_METHOD} eq 'POST') {
-            formdata();
-            if (formcheck() == 0) {
-                eval { mailsend() };
-                CFdie(escapeHTML(my $msg = $@)) if $@;
-                last MAIN;
-            }
+    local $^W = 1;  # enables warnings
+    %args = %in = %error = ();
+    arguments(@_);
+    if ($ENV{REQUEST_METHOD} eq 'POST') {
+        formdata();
+        if (formcheck() == 0) {
+            eval { mailsend() };
+            CFdie(escapeHTML(my $msg = $@)) if $@;
+            return;
         }
-        formprint();
     }
+    formprint();
 }
 
 sub arguments {
@@ -387,7 +403,7 @@ EXAMPLE
 }
 
 sub formdata {
-    my $size = $ENV{CONTENT_LENGTH} ? $ENV{CONTENT_LENGTH} : (stat(STDIN))[7];
+    my $size = $ENV{CONTENT_LENGTH} ? $ENV{CONTENT_LENGTH} : (stat STDIN)[7];
     if ($size > 1024 * $args{maxsize}) {
         CFdie("The message size exceeds the $args{maxsize} KiB limit.\n"
               . '<p><a href="javascript:history.back(1)">Back</a>');

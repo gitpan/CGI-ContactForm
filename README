@@ -134,16 +134,33 @@ DEPENDENCIES
     "Flowed.pm" to those directories.
 
 AUTHENTICATION
-    If you have access to a mail server that sends messages from a CGI
-    script to any address, you don't need to worry about authentication.
-    Otherwise you need to somehow authenticate to the server.
+    If you have access to a mail server that is configured to automatically
+    accept sending messages from a CGI script to any address, you don't need
+    to worry about authentication. Otherwise you need to somehow
+    authenticate to the server, for instance by adding something like this
+    right after the "use CGI::ContactForm;" line in "contact.pl":
 
-    The distribution includes a file named "Sender.config". A convenient way
-    to deal with a need for authentication is to edit that file and upload
-    it to the same directory as the one where "Sender.pm" is located. The
-    "Mail::Sender" documentation includes more guidance.
+        %Mail::Sender::default = (
+            auth      => 'LOGIN',
+            authid    => 'username',
+            authpwd   => 'password',
+        );
+
+    "auth" is the SMTP authentication protocol. Common protocols are "LOGIN"
+    and "PLAIN". You may need help from the mail server's administrator to
+    find out which protocol and username/password pair to use.
+
+    If there are multiple forms, a more convenient way to deal with a need
+    for authentication may be to make use of the "Sender.config" file that
+    is included in the distribution. You just edit it and upload it to the
+    same directory as the one where "Sender.pm" is located.
+
+    See the "Mail::Sender" documentation for further guidance.
 
 VERSION HISTORY
+    v1.18 (Oct 18, 2003)
+        Improved documentation of mail server authentication.
+
     v1.17 (Oct 8, 2003)
         New argument: 'subject' - for setting a default subject.
 
