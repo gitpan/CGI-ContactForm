@@ -54,6 +54,7 @@ DESCRIPTION
         marked              'marked labels'
         thanks              'Thanks for your message!'
         sent_to             'The message was sent to %s with a copy to %s.'
+        encoding            'iso-8859-1'
 
 INSTALLATION
   Installation with Makefile.PL
@@ -101,6 +102,9 @@ EXAMPLES
     style sheet typically needs to be located somewhere outside the cgi-bin.
 
 VERSION HISTORY
+    v1.02 (Feb 16, 2003)
+        DOCTYPE declaration changed to XHTML 1.1.
+
     v1.01 (Feb 13, 2003)
         CSS validation error corrected.
 

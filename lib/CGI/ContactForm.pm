@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.12 2003/02/13 09:08:04 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.13 2003/02/16 12:49:37 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -60,6 +60,7 @@ C<CGI::ContactForm> takes the following arguments:
     marked              'marked labels'
     thanks              'Thanks for your message!'
     sent_to             'The message was sent to %s with a copy to %s.'
+    encoding            'iso-8859-1'
 
 =head1 INSTALLATION
 
@@ -124,6 +125,10 @@ located somewhere outside the cgi-bin.
 
 =over 4
 
+=item v1.02 (Feb 16, 2003)
+
+DOCTYPE declaration changed to XHTML 1.1.
+
 =item v1.01 (Feb 13, 2003)
 
 CSS validation error corrected.
@@ -181,57 +186,54 @@ use strict;
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '1.01';
+$VERSION = '1.02';
 
 use Exporter;
 @ISA = 'Exporter';
 @EXPORT = 'contactform';
 
-my %defaults = (
-    recname        => '',
-    recmail        => '',
-    smtp           => '',
-    styleurl       => '',
-    returnlinktext => 'Main Page',
-    returnlinkurl  => '/',
-    title          => 'Send email to',
-    name           => 'Your&nbsp;name:',
-    email          => 'Your&nbsp;email:',
-    subject        => 'Subject:',
-    message        => 'Message:',
-    reset          => 'Reset',
-    send           => 'Send',
-    erroralert     => 'Fields with %s need to be filled or corrected.',
-    marked         => 'marked labels',
-    thanks         => 'Thanks for your message!',
-    sent_to        => 'The message was sent to %s with a copy to %s.',
-);
-
 sub contactform {
     local $^W = 1;  # enables warnings
-    print "Content-type: text/html; charset=iso-8859-1\n\n";
     arguments (@_);
     if ($ENV{'REQUEST_METHOD'} eq 'POST') {
         referercheck();
         readform();
-    }
-    if (formcheck() eq 'OK') {
-        eval { mailsend() };
-        if ($@) {
-            htmlize (my $err = $@);
-            $err =~ s/\n/<br>\n/g;
-            print "<h1>Error</h1>\n<tt>", $err;
+        if (formcheck() eq 'OK') {
+            eval { mailsend() };
+            if ($@) {
+                (my $err = htmlize ($@)) =~ s/\n/<br>\n/g;
+                print "<h1>Error</h1>\n<tt>", $err;
+            }
+            exit;
         }
-    } else {
-        formprint();
     }
+    formprint();
     exit;
 }
 
 sub arguments {
+    my %defaults = (
+        recname        => '',
+        recmail        => '',
+        smtp           => '',
+        styleurl       => '',
+        returnlinktext => 'Main Page',
+        returnlinkurl  => '/',
+        title          => 'Send email to',
+        name           => 'Your&nbsp;name:',
+        email          => 'Your&nbsp;email:',
+        subject        => 'Subject:',
+        message        => 'Message:',
+        reset          => 'Reset',
+        send           => 'Send',
+        erroralert     => 'Fields with %s need to be filled or corrected.',
+        marked         => 'marked labels',
+        thanks         => 'Thanks for your message!',
+        sent_to        => 'The message was sent to %s with a copy to %s.',
+        encoding       => 'iso-8859-1',
+    );
     my @error = ();
     {
-        # Grabs the key/value pairs and checks that the number of elements isn't odd
         local $SIG{__WARN__} = sub { die $_[0] };
         eval { %args = (%defaults, @_) };
         push @error, $@, "The module expects a number of key/value pairs.\n" if $@;
@@ -245,6 +247,7 @@ sub arguments {
     if ($args{'recmail'} and emailsyntax ($args{'recmail'}) eq 'ERR') {
         push @error, "'$args{'recmail'}' is not a valid email address.\n";
     }
+    print "Content-type: text/html; charset=$args{'encoding'}\n\n";
     if (@error) {
         print "<h1>Error</h1>\n<pre>";
         for (@error) { print }
@@ -274,15 +277,15 @@ sub referercheck {
 
 sub readform {
     %in = ();
-    read (STDIN, $in{'raw'}, $ENV{'CONTENT_LENGTH'});
-    $in{'raw'} =~ s/\+/ /g;
-    for (split(/&/, $in{'raw'}))	{
-        my ($name, $value) = split(/=/);
-        $value =~ s/%(..)/pack("c",hex($1))/ge;
+    read STDIN, my $input, $ENV{'CONTENT_LENGTH'};
+    $input =~ s/\+/ /g;
+    for (split /&/, $input)	{
+        my ($name, $value) = split /=/;
+        $value =~ s/%(..)/pack 'c', hex $1/ge;
         $in{$name} = $value;
     }
 
-    # trim whitespace
+    # trim whitespace in message headers
     for (qw/name email subject/) {
         $in{$_} =~ s/^\s+//;
         $in{$_} =~ s/\s+$//;
@@ -294,11 +297,8 @@ sub readform {
 }
 
 sub formcheck {
-    return '' unless $in{'raw'};
     %error = ();
-    for (qw/name subject message/) {
-        $error{$_} = ' class="error"' unless $in{$_};
-    }
+    for (qw/name subject message/) { $error{$_} = ' class="error"' unless $in{$_} }
     $error{'email'} = ' class="error"' if emailsyntax ($in{'email'}) eq 'ERR';
     return %error ? '' : 'OK';
 }
@@ -322,12 +322,12 @@ sub mailsend {
     import Text::Flowed 'reformat';
     $in{'message'} = reformat ($in{'message'}, { max_length => 66, opt_length => 66 });
     push @extras, 'MIME-Version: 1.0';
-    push @extras, 'Content-type: text/plain; charset=iso-8859-1; format=flowed';
+    push @extras, "Content-type: text/plain; charset=$args{'encoding'}; format=flowed";
 
     # Send message
     require Mail::Sender;
     $Mail::Sender::NO_X_MAILER = 1;
-    $Mail::Sender::SITE_HEADERS = join ("\r\n", @extras);
+    $Mail::Sender::SITE_HEADERS = join "\r\n", @extras;
     (new Mail::Sender) -> MailMsg ({
         smtp      => $args{'smtp'},
         from      => $args{'recmail'},
@@ -336,11 +336,11 @@ sub mailsend {
         bcc       => $in{'email'},
         subject   => $in{'subject'},
         msg       => $in{'message'},
-      }) or die "Error: $Mail::Sender::Error\n$!";
+    }) or die "Cannot send mail.\n$Mail::Sender::Error\n";
 
     # Print resulting page
-    htmlize ($in{'email'});
-    my $sent_to = sprintf ($args{'sent_to'}, "<b>$args{'recname'}</b>", "<b>$in{'email'}</b>");
+    $in{'email'} = htmlize ($in{'email'});
+    my $sent_to = sprintf $args{'sent_to'}, "<b>$args{'recname'}</b>", "<b>$in{'email'}</b>";
     headprint();
 
     print <<RESULT;
@@ -358,11 +358,7 @@ sub formprint {
       . sprintf ($args{'erroralert'}, "<span class=\"error\">\n$args{'marked'}</span>")
       . "</p></td>\n</tr>" : '';
     for (qw/name email subject message/) {
-        if ($in{$_}) {
-            htmlize ($in{$_});
-        } else {
-            $in{$_} = '';
-        }
+        $in{$_} = $in{$_} ? htmlize ($in{$_}) : '';
         $error{$_} = '' unless $error{$_};
     }
     headprint();
@@ -410,9 +406,9 @@ sub headprint {
       "<link rel=\"stylesheet\" type=\"text/css\" href=\"$args{'styleurl'}\" />" : '';
 
     print <<HEAD;
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+                      "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <title>$args{'title'} $args{'recname'}</title>
 <style type="text/css">
@@ -425,10 +421,12 @@ HEAD
 }
 
 sub htmlize {
-    $_[0] =~ s/&/&amp;/g;
-    $_[0] =~ s/"/&quot;/g;
-    $_[0] =~ s/</&lt;/g;
-    $_[0] =~ s/>/&gt;/g;
+    my $value = shift;
+    $value =~ s/&/&amp;/g;
+    $value =~ s/"/&quot;/g;
+    $value =~ s/</&lt;/g;
+    $value =~ s/>/&gt;/g;
+    $value
 }
 
 sub namefix {
