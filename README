@@ -135,6 +135,10 @@ DEPENDENCIES
     "Flowed.pm" to those directories.
 
 VERSION HISTORY
+    v1.15 (Aug 24, 2003)
+        Referer check removed, since it made the script fail with certain
+        browsers while its security value was limited.
+
     v1.14 (Jul 10, 2003)
         Handling of error messages improved.
 

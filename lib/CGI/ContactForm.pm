@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.27 2003/07/10 21:03:39 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.30 2003/08/24 11:07:00 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -169,6 +169,11 @@ C<Flowed.pm> to those directories.
 
 =over 4
 
+=item v1.15 (Aug 24, 2003)
+
+Referer check removed, since it made the script fail with certain browsers
+while its security value was limited.
+
 =item v1.14 (Jul 10, 2003)
 
 Handling of error messages improved.
@@ -260,7 +265,7 @@ use CGI 'escapeHTML';
 my (%args, %in, %error);
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = 1.14;
+$VERSION = '1.15';
 
 use Exporter;
 @ISA = 'Exporter';
@@ -289,7 +294,6 @@ sub contactform {
         %args = %in = %error = ();
         arguments(@_);
         if ($ENV{REQUEST_METHOD} eq 'POST') {
-            referercheck();
             formdata();
             if (formcheck() == 0) {
                 eval { mailsend() };
@@ -358,12 +362,6 @@ Example:
 EXAMPLE
 
     ) if $error;
-}
-
-sub referercheck {
-    return if $ENV{HTTP_REFERER} =~ /$ENV{HTTP_HOST}$ENV{REQUEST_URI}/i;
-    CFdie("This script prefers data input from its self generated form.\n"
-          . "<p><a href=\"$ENV{REQUEST_URI}\">Try again</a>");
 }
 
 sub formdata {
@@ -457,7 +455,7 @@ sub formprint {
     $args{$_} = escapeHTML($args{$_}) for @formargs;
     $args{returnlinkurl} =~ s/ /%20/g;
     for (qw/name email subject message/) {
-        ${$in{$_}} = escapeHTML(${$in{$_}}) || '';
+        ${$in{$_}} = $in{$_} ? escapeHTML(${$in{$_}}) : '';
         $error{$_} ||= '';
     }
 
