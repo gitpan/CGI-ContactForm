@@ -68,9 +68,15 @@ DEPENDENCIES
 
 EXAMPLES
     An example CGI script ("contact.pl") and a style sheet
-    ("ContactForm.css") are included in the distribution.
+    ("ContactForm.css") are included in the distribution. Note that the
+    style sheet typically needs to be located somewhere outside the cgi-bin.
 
 VERSION HISTORY
+    v0.3 (Feb 7, 2003)
+        Check of email syntax modified (hopefully now closer to RFC 822).
+
+        Better structured code, which now should be more easy to follow.
+
     v0.2 (Feb 5, 2003)
         Referer check in order to only accept data input from the generated
         form.
@@ -82,9 +88,9 @@ VERSION HISTORY
 
 LATEST VERSION
     The latest version of "CGI::ContactForm" is available at:
-    http://www.gunnar.cc/contactform/
+    http://search.cpan.org/author/GUNNAR/
 
-AUTHOR
+AUTHOR, COPYRIGHT AND LICENSE
       Copyright © 2003 Gunnar Hjalmarsson
       http://www.gunnar.cc/cgi-bin/contact.pl
 

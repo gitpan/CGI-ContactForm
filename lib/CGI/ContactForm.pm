@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.5 2003/02/05 20:56:58 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.6 2003/02/07 11:06:50 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -84,11 +84,18 @@ It also requires direct access to an SMTP server.
 =head1 EXAMPLES
 
 An example CGI script (C<contact.pl>) and a style sheet (C<ContactForm.css>) are
-included in the distribution.
+included in the distribution. Note that the style sheet typically needs to be
+located somewhere outside the cgi-bin.
 
 =head1 VERSION HISTORY
 
 =over 4
+
+=item v0.3 (Feb 7, 2003)
+
+Check of email syntax modified (hopefully now closer to RFC 822).
+
+Better structured code, which now should be more easy to follow.
 
 =item v0.2 (Feb 5, 2003)
 
@@ -105,9 +112,9 @@ Initial release.
 =head1 LATEST VERSION
 
 The latest version of C<CGI::ContactForm> is available at:
-http://www.gunnar.cc/contactform/
+http://search.cpan.org/author/GUNNAR/
 
-=head1 AUTHOR
+=head1 AUTHOR, COPYRIGHT AND LICENSE
 
   Copyright © 2003 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
@@ -117,67 +124,61 @@ under the same terms as Perl itself.
 
 =cut
 
-$VERSION = 0.2;
+use strict;
+my (%args, %in, %error);
+use vars qw($VERSION @ISA @EXPORT);
+
+$VERSION = 0.3;
 
 use Exporter;
 @ISA = 'Exporter';
 @EXPORT = 'contactform';
 
-use strict;
-my (%args, %in, %error);
-
 sub contactform {
     print "Content-type: text/html; charset=iso-8859-1\n\n";
+    arguments (@_);
+    if ($ENV{'REQUEST_METHOD'} eq 'POST') {
+        referercheck();
+        readform();
+    }
+    if (formcheck() eq 'OK') {
+        eval { mailsend() };
+        if ($@) {
+            htmlize (my $err = $@);
+            $err =~ s/\n/<br>\n/g;
+            exit (print "<h1>Error</h1>\n<tt>", $err);
+        }
+    } else {
+        formprint();
+    }
+}
+
+sub arguments {
+    my @error = ();
     {
         # Grabs the key/value pairs and checks that the number of elements isn't odd
         local $^W = 1;
         local $SIG{__WARN__} = sub { die $_[0] };
-        eval { %args = (defaultargs(), @_) };
-        if ($@) {
-            print "<h1>Error</h1>\n<pre>", $@,
-                  "The module expects a number of key/value pairs.\n", example();
-            exit;
-        }
+        eval {
+            %args = (
+                returnlinktext => 'Main Page',  # default argument
+                returnlinkurl  => '/',          # "-
+                @_                              # arguments passed from CGI script
+            )
+        };
+        push @error, $@, "The module expects a number of key/value pairs.\n" if $@;
     }
-    argscheck();
-    readform();
-    unless (formcheck()) {
-        formprint();
-    } else {
-        eval { mailsend() };
-        if ($@) {
-            htmlize (my $err = $@);
-            $err =~ s/\n/<br \/>\n/g;
-            exit (print "<h1>Error</h1>\n<tt>", $err);
-        }
-    }
-}
-
-sub defaultargs {
-    return (
-        returnlinktext => 'Main Page',
-        returnlinkurl  => '/',
-    );
-}
-
-sub argscheck {
-    my @error = ();
     for (qw/recname recmail smtp/) {
         push @error, "The compulsory argument '$_' is missing.\n" unless $args{$_};
     }
-    if ($args{'recmail'} and emailcheck ($args{'recmail'})) {
+    if ($args{'recmail'} and emailsyntax ($args{'recmail'}) eq 'ERR') {
         push @error, "'$args{'recmail'}' is not a valid email address.\n";
     }
     if (@error) {
         print "<h1>Error</h1>\n<pre>";
         for (@error) { print }
-        print example();
-        exit;
-    }
-}
 
-sub example {
-    return <<EXAMPLE;
+        print <<EXAMPLE;
 
 Example:
 
@@ -187,44 +188,9 @@ Example:
         smtp    => 'smtp.domain.com',
     );
 EXAMPLE
-}
 
-sub readform {
-    %in = ();
-    read (STDIN, $in{'raw'}, $ENV{'CONTENT_LENGTH'});
-    return unless $in{'raw'};
-    $in{'raw'} =~ s/\+/ /g;
-    for (split(/&/, $in{'raw'}))	{
-        my ($name, $value) = split(/=/);
-        $value =~ s/%(..)/pack("c",hex($1))/ge;
-        $value =~ s/\r\n/\n/g;    # Windows fix
-        $in{$name} = $value;
+        exit;
     }
-}
-
-sub formcheck {
-    return 0 unless $in{'raw'};
-    referercheck();
-    %error = ();
-    my $err;
-    for (qw/name subject message/) {
-        unless ($in{$_}) {
-            $error{$_} = ' class="error"';
-            $err = 1;
-        }
-    }
-    $in{'email'} =~ s/^\s*(\S+)\s*$/$1/;
-    if (!$in{'email'} or ($in{'email'} and emailcheck ($in{'email'}))) {
-        $error{'email'} = ' class="error"';
-        $err = 1;
-    }
-    return $err ? 0 : 1;
-}
-
-sub emailcheck {
-    my $address = shift;
-    my $char = '[^()<>@,;:\/\s"\'&|.]';
-    return ($address =~ /^[^()<>@,;:\/\s"'&|]+\@$char+(?:\.$char+)+$/) ? 0 : 1;
 }
 
 sub referercheck {
@@ -235,13 +201,56 @@ sub referercheck {
     exit;
 }
 
-sub mailsend {
-    require Mail::Sender;
+sub readform {
+    %in = ();
+    read (STDIN, $in{'raw'}, $ENV{'CONTENT_LENGTH'});
+    $in{'raw'} =~ s/\+/ /g;
+    for (split(/&/, $in{'raw'}))	{
+        my ($name, $value) = split(/=/);
+        $value =~ s/%(..)/pack("c",hex($1))/ge;
+        $in{$name} = $value;
+    }
 
+    # trim whitespace
+    for (qw/name email subject/) {
+        $in{$_} =~ s/^\s+//;
+        $in{$_} =~ s/\s+$//;
+        $in{$_} =~ s/\s+/ /g;
+    }
+
+    # Windows fix
+    $in{'message'} =~ s/\r\n/\n/g;
+}
+
+sub formcheck {
+    return '' unless $in{'raw'};
+    %error = ();
+    my $err;
+    for (qw/name subject message/) {
+        unless ($in{$_}) {
+            $error{$_} = ' class="error"';
+            $err = 1;
+        }
+    }
+    if (emailsyntax ($in{'email'}) eq 'ERR') {
+        $error{'email'} = ' class="error"';
+        $err = 1;
+    }
+    return $err ? '' : 'OK';
+}
+
+sub emailsyntax {
+    return 'ERR' unless (my $localpart = shift) =~ s/^(.+)@(.+)/$1/;
+    my $domain = $2;
+    my $char = '[^()<>@,;:\/\s"\'&|.]';
+    return 'ERR' unless $localpart =~ /^$char+(?:\.$char+)*$/ or $localpart =~ /^"[^",]+"$/;
+    return $domain =~ /^$char+(?:\.$char+)+$/ ? '' : 'ERR';
+}
+
+sub mailsend {
     # Extra headers
     my @extras = ();
-    push @extras, "X-Mailer: Contact form at $ENV{'HTTP_HOST'} "
-      . "using Mail::Sender $Mail::Sender::ver by Jenda Krynicky";
+    push @extras, "X-Mailer: CGI::ContactForm $VERSION at $ENV{'HTTP_HOST'}";
     push @extras, "X-Originating-IP: [$ENV{'REMOTE_ADDR'}]" if $ENV{'REMOTE_ADDR'};
 
     # Make message format=flowed (RFC 2646)
@@ -252,6 +261,7 @@ sub mailsend {
     push @extras, 'Content-type: text/plain; charset=iso-8859-1; format=flowed';
 
     # Send message
+    require Mail::Sender;
     $Mail::Sender::NO_X_MAILER = 1;
     $Mail::Sender::SITE_HEADERS = join ("\r\n", @extras);
     (new Mail::Sender) -> MailMsg ({
@@ -261,7 +271,7 @@ sub mailsend {
         to        => namefix ($args{'recname'}) . " <$args{'recmail'}>",
         bcc       => $in{'email'},
         subject   => $in{'subject'},
-        msg       => $in{'message'}
+        msg       => $in{'message'},
       }) or die "Error: $Mail::Sender::Error\n$!";
 
     # Print resulting page
@@ -336,7 +346,7 @@ sub headprint {
                       "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>Contact $args{'recname'}</title>
+<title>Send email to $args{'recname'}</title>
 $style
 </head>
 <body>
