@@ -1,6 +1,6 @@
 package CGI::ContactForm;
 
-# $Id: ContactForm.pm,v 1.3 2003/02/03 14:07:31 Gunnar Hjalmarsson Exp $
+# $Id: ContactForm.pm,v 1.5 2003/02/05 20:56:58 Gunnar Hjalmarsson Exp $
 
 =head1 NAME
 
@@ -90,6 +90,12 @@ included in the distribution.
 
 =over 4
 
+=item v0.2 (Feb 5, 2003)
+
+Referer check in order to only accept data input from the generated form.
+
+Improved email validation.
+
 =item v0.1 (Feb 3, 2003)
 
 Initial release.
@@ -111,7 +117,7 @@ under the same terms as Perl itself.
 
 =cut
 
-$VERSION = 0.1;
+$VERSION = 0.2;
 
 use Exporter;
 @ISA = 'Exporter';
@@ -141,6 +147,7 @@ sub contactform {
         eval { mailsend() };
         if ($@) {
             htmlize (my $err = $@);
+            $err =~ s/\n/<br \/>\n/g;
             exit (print "<h1>Error</h1>\n<tt>", $err);
         }
     }
@@ -158,7 +165,7 @@ sub argscheck {
     for (qw/recname recmail smtp/) {
         push @error, "The compulsory argument '$_' is missing.\n" unless $args{$_};
     }
-    if ($args{'recmail'} and $args{'recmail'} !~ /^\S+\@\S+\.\S+$/) {
+    if ($args{'recmail'} and emailcheck ($args{'recmail'})) {
         push @error, "'$args{'recmail'}' is not a valid email address.\n";
     }
     if (@error) {
@@ -197,6 +204,7 @@ sub readform {
 
 sub formcheck {
     return 0 unless $in{'raw'};
+    referercheck();
     %error = ();
     my $err;
     for (qw/name subject message/) {
@@ -206,11 +214,25 @@ sub formcheck {
         }
     }
     $in{'email'} =~ s/^\s*(\S+)\s*$/$1/;
-    if (!$in{'email'} or ($in{'email'} and $in{'email'} !~ /^\S+\@\S+\.\S+$/)) {
+    if (!$in{'email'} or ($in{'email'} and emailcheck ($in{'email'}))) {
         $error{'email'} = ' class="error"';
         $err = 1;
     }
     return $err ? 0 : 1;
+}
+
+sub emailcheck {
+    my $address = shift;
+    my $char = '[^()<>@,;:\/\s"\'&|.]';
+    return ($address =~ /^[^()<>@,;:\/\s"'&|]+\@$char+(?:\.$char+)+$/) ? 0 : 1;
+}
+
+sub referercheck {
+    return if $ENV{'HTTP_REFERER'} =~ /$ENV{'HTTP_HOST'}$ENV{'REQUEST_URI'}/i;
+    print "<h1>Error</h1>\n",
+          "<p>This script only permits data input from its self generated form.\n",
+          "<p><a href=\"$ENV{'REQUEST_URI'}\">Try again</a>";
+    exit;
 }
 
 sub mailsend {

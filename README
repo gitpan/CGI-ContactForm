@@ -71,6 +71,12 @@ EXAMPLES
     ("ContactForm.css") are included in the distribution.
 
 VERSION HISTORY
+    v0.2 (Feb 5, 2003)
+        Referer check in order to only accept data input from the generated
+        form.
+
+        Improved email validation.
+
     v0.1 (Feb 3, 2003)
         Initial release.
 
