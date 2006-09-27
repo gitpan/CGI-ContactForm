@@ -1,5 +1,9 @@
 Version history for CGI::ContactForm.
 
+v1.31 (Sep 27, 2006)
+    Critical bug fixed: A certain kind of message body data will no
+    longer cause ContactForm.pm to enter into an infinite loop.
+
 v1.30 (Feb 11, 2005)
     Function copied from Text::Flowed, which module no longer needs to
     be loaded.

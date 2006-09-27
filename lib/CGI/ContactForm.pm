@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.30';
-# $Id: ContactForm.pm,v 1.45 2005/02/12 01:05:45 gunnarh Exp $
+$VERSION = '1.31';
+# $Id: ContactForm.pm,v 1.50 2006/09/27 16:54:31 gunnarh Exp $
 
 =head1 NAME
 
@@ -193,7 +193,7 @@ See the L<Mail::Sender|Mail::Sender> documentation for further guidance.
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
-  Copyright © 2003-2005 Gunnar Hjalmarsson
+  Copyright © 2003-2006 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
 
 This module is free software; you can redistribute it and/or modify it
@@ -234,7 +234,7 @@ BEGIN {
 sub contactform {
     local $^W = 1;  # enables warnings
     my ($error, $in) = {};
-    my $args = arguments(@_);
+    my $args = &arguments;
     if ($ENV{REQUEST_METHOD} eq 'POST') {
         $in = formdata( $args->{maxsize} );
         if (formcheck($in, $args->{subject}, $error) == 0) {
@@ -521,7 +521,8 @@ sub namefix {
 }
 
 sub reformat {
-# This subroutine was copied from Text::Flowed v0.14, written by Philip Mak
+# This subroutine was initially copied from Text::Flowed v0.14, written by
+# Philip Mak. It has undergone a couple of changes since.
 
     # Help functions in Text::Flowed nested into this copy of reformat()
     sub _num_quotes { $_[0] =~ /^(>*)/; length $1 }
@@ -533,7 +534,7 @@ sub reformat {
         return 0 if $line =~ /^ *$/;
         $line =~ / $/;
     }
-    sub _trim { local $_ = shift; s/ +$//g; $_ }
+    sub _trim { local *_ = \shift; s/ +$//g; $_ }
     sub _stuff {
         my ($text, $num_quotes) = @_;
         if ($text =~ /^ / || $text =~ /^>/ || $text =~ /^From / || $num_quotes > 0) {
@@ -541,7 +542,7 @@ sub reformat {
         }
         $text;
     }
-    sub _unstuff { local $_ = shift; s/^ //; $_ }
+    sub _unstuff { local *_ = \shift; s/^ //; $_ }
 
     my @input = split "\n", $_[0];
     my $args = $_[1];
@@ -572,7 +573,7 @@ sub reformat {
         # Increment quote depth if we're quoting
         $num_quotes++ if $args->{quote};
 
-        if (!$line) {
+        if ( !( defined $line and length $line ) ) {
             # Line is empty
             push @output, '>' x $num_quotes;
         } elsif (length($line) + $num_quotes <= $args->{max_length} - 1) {
@@ -580,7 +581,7 @@ sub reformat {
             push @output, '>' x $num_quotes . _stuff($line, $num_quotes);
         } else {
             # Rewrap this paragraph
-            while ($line) {
+            while ( defined $line and length $line ) {
                 # Stuff and re-quote the line
                 $line = '>' x $num_quotes . _stuff($line, $num_quotes);
 
@@ -593,7 +594,7 @@ sub reformat {
                     push @output, $line;
                     last;
                 } elsif ( $line =~ /^(.{$min,$opt1}) (.*)/ ||
-                  $line =~ /^(.{$min,$max1}) (.*)/ || $line =~ /^(.{$min,})? (.*)/ ) {
+                  $line =~ /^(.{$min,$max1}) (.*)/ || $line =~ /^(.{$min,}) (.*)/ ) {
                     # 1. Try to find a string as long as opt_length.
                     # 2. Try to find a string as long as max_length.
                     # 3. Take the first word.
