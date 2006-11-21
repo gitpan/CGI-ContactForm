@@ -1,7 +1,7 @@
 package CGI::ContactForm::MHonArc;
 
-$VERSION = '1.01';
-# $Id: MHonArc.pm,v 1.4 2004/03/15 01:10:00 gunnarh Exp $
+$VERSION = '1.02';
+# $Id: MHonArc.pm,v 1.5 2006/11/21 21:47:15 gunnarh Exp $
 
 =head1 NAME
 
@@ -71,7 +71,7 @@ C<bouncetosender> argument (see the C<SYNOPSIS> example).
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
-  Copyright © 2004 Gunnar Hjalmarsson
+  Copyright (c) 2004-2006 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
 
 This module is free software; you can redistribute it and/or modify it
@@ -84,7 +84,7 @@ L<CGI::ContactForm|CGI::ContactForm>, L<MHonArc|mhonarc>
 =cut
 
 use strict;
-use CGI::ContactForm 1.20 'CFdie';
+use CGI::ContactForm 1.40 'CFdie';
 use vars qw($VERSION @ISA @EXPORT %MsgId %From %Subject);
 use Exporter;
 @ISA = 'Exporter';
@@ -101,7 +101,6 @@ sub getmsgvalues {
         @nodot{ qw/MSWin32 dos os2 VMS/ } = ();
         my $defaultdb = exists $nodot{$^O} ? 'mhonarc.db' : '.mhonarc.db';
         my $dbfile = (shift or $defaultdb);
-        require File::Spec;
         unless ( File::Spec->file_name_is_absolute($dbfile) ) {
             my $outdir = $q->param('outdir')
               or CFdie("Path to the archive directory is missing.\n");

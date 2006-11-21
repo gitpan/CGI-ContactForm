@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.31';
-# $Id: ContactForm.pm,v 1.50 2006/09/27 16:54:31 gunnarh Exp $
+$VERSION = '1.40';
+# $Id: ContactForm.pm,v 1.55 2006/11/21 21:47:54 gunnarh Exp $
 
 =head1 NAME
 
@@ -24,10 +24,13 @@ is called from a CGI script. Arguments are passed to the module as a list of
 key/value pairs.
 
 C<CGI::ContactForm> sends a well formated (plain text format=flowed in accordance
-with RFC 2646) email message, with the sender's address in the C<From:> header, and
-the sender gets a C<bcc> copy. If the email address stated by the sender is invalid,
-by default the failure message is sent to the recipient address, through which you
-know that you don't need to bother with a reply, at least not to that address...
+with RFC 2646) email message, with the sender's address in the C<From:> header.
+
+By default the sender gets a C<bcc> copy. If the email address stated by the
+sender is invalid, by default the failure message is sent to the recipient address,
+through which you know that you don't need to bother with a reply, at least not to
+that address...  However, by setting the C<nocopy> argument you can prevent the
+sender copy from being sent.
 
 =head2 Arguments
 
@@ -47,10 +50,12 @@ C<CGI::ContactForm> takes the following arguments:
     returnlinktext      'Main Page'
     returnlinkurl       '/'
     subject             (none)
+    nocopy              0
     bouncetosender      0
     formtmplpath        (none)
     resulttmplpath      (none)
     maxsize             100 (KiB)
+    tempdir             (none)
 
     Additional arguments, intended for forms at non-English sites
     -------------------------------------------------------------
@@ -65,6 +70,7 @@ C<CGI::ContactForm> takes the following arguments:
     marked              'marked labels'
     thanks              'Thanks for your message!'
     sent_to             'The message was sent to %s with a copy to %s.'
+    sent_to_short       'The message was sent to %s.'
     encoding            'iso-8859-1'
 
 =head2 Customization
@@ -193,7 +199,7 @@ See the L<Mail::Sender|Mail::Sender> documentation for further guidance.
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
-  Copyright © 2003-2006 Gunnar Hjalmarsson
+  Copyright (c) 2003-2006 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
 
 This module is free software; you can redistribute it and/or modify it
@@ -209,6 +215,8 @@ L<Mail::Sender|Mail::Sender>
 use strict;
 use CGI 'escapeHTML';
 use File::Basename;
+use File::Spec;
+use Fcntl qw(:DEFAULT :flock);
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use Exporter;
 @ISA = 'Exporter';
@@ -217,6 +225,7 @@ use Exporter;
 
 BEGIN {
     sub CFdie($) {
+        print "Status: 400 Bad Request\n";
         print "Content-type: text/html\n\n<h1>Error</h1>\n<tt>", shift;
         if ( $ENV{MOD_PERL} ) {
             if ( $] < 5.006 ) {
@@ -236,12 +245,15 @@ sub contactform {
     my ($error, $in) = {};
     my $args = &arguments;
     if ($ENV{REQUEST_METHOD} eq 'POST') {
+        checktimestamp( $args->{tempdir} );
         $in = formdata( $args->{maxsize} );
         if (formcheck($in, $args->{subject}, $error) == 0) {
             eval { mailsend($args, $in) };
             CFdie( escapeHTML(my $msg = $@) ) if $@;
             return;
         }
+    } else {
+        settimestamp( $args->{tempdir} );
     }
     formprint($args, $in, $error);
 }
@@ -255,10 +267,12 @@ sub arguments {
         returnlinktext => 'Main Page',
         returnlinkurl  => '/',
         subject        => '',
+        nocopy         => 0,
         bouncetosender => 0,
         formtmplpath   => '',
         resulttmplpath => '',
         maxsize        => 100,
+        tempdir        => '',
         title          => 'Send email to',
         namelabel      => 'Your name:',
         emaillabel     => 'Your email:',
@@ -270,6 +284,7 @@ sub arguments {
         marked         => 'marked labels',
         thanks         => 'Thanks for your message!',
         sent_to        => 'The message was sent to %s with a copy to %s.',
+        sent_to_short  => 'The message was sent to %s.',
         encoding       => 'iso-8859-1',
     );
     my (%args, $error);
@@ -286,6 +301,9 @@ sub arguments {
     }
     if ($args{recmail} and emailsyntax($args{recmail})) {
         $error .= "'$args{recmail}' is not a valid email address.\n";
+    }
+    if ($args{tempdir} and !(-d $args{tempdir} and -w _ and -x _)) {
+        $error .= "'$args{tempdir}' is not a writable directory.\n";
     }
     for ('formtmplpath', 'resulttmplpath') {
         if ($args{$_} and !-f $args{$_}) {
@@ -366,7 +384,7 @@ sub mailsend {
         from      => ( $args->{bouncetosender} ? $in->{email} : $args->{recmail} ),
         fake_from => namefix( $in->{name} ) . " <$in->{email}>",
         to        => namefix( $args->{recname} ) . " <$args->{recmail}>",
-        bcc       => $in->{email},
+        bcc       => ( $args->{nocopy} ? '' : $in->{email} ),
         subject   => $in->{subject},
         msg       => $in->{message},
     } )) or die "Cannot send mail. $Mail::Sender::Error\n";
@@ -374,7 +392,7 @@ sub mailsend {
     # Print resulting page
     my @resultargs = qw/recname returnlinktext returnlinkurl title thanks/;
     $args->{$_} = escapeHTML( $args->{$_} ) for @resultargs;
-    my $sent_to = sprintf escapeHTML( $args->{sent_to} ),
+    my $sent_to = sprintf escapeHTML( $args->{nocopy} ? $args->{sent_to_short} : $args->{sent_to} ),
       "<b>$args->{recname}</b>", '<b>' . escapeHTML( $in->{email} ) . '</b>';
     $args->{returnlinkurl} =~ s/ /%20/g;
     if ( $args->{resulttmplpath} ) {
@@ -610,6 +628,52 @@ sub reformat {
     }
 
     join("\n", @output)."\n";
+}
+
+sub checktimestamp {
+    my $tempdir = shift || $CGITempFile::TMPDIRECTORY;
+    my $cookie;
+    if ( !$ENV{HTTP_COOKIE} or !( ($cookie) = $ENV{HTTP_COOKIE} =~ /\bContactForm_time=(\d+)/ ) ) {
+        CFdie("Your browser is set to refuse cookies.<br>\n"
+       ."Change that setting to accept at least session cookies, and try again.\n");
+    }
+    open FH, File::Spec->catfile( $tempdir, 'ContactForm_time' )
+      or die "Couldn't open timestamp file: $!";
+    chomp( my @timestamps = <FH> );
+    close FH or die $!;
+    if ( $cookie + 3600 < time or ! grep $cookie eq $_, @timestamps ) {
+        CFdie("Timeout due to more than 60 minutes of inactivity.\n");
+    }
+}
+
+sub settimestamp {
+    my $tempdir = shift;
+    unless ($tempdir) {
+        unless (-d $CGITempFile::TMPDIRECTORY and -r _ and -w _ and -x _) {
+            CFdie("You need to state a temporary directory via the 'tempdir' argument.\n");
+        }
+        $tempdir = $CGITempFile::TMPDIRECTORY;
+    }
+    my $time = time;
+    umask 0;
+
+    sysopen FH, File::Spec->catfile( $tempdir, 'ContactForm_time' ), O_RDWR|O_CREAT
+      or die "Couldn't open timestamp file: $!";
+    flock FH, LOCK_EX or die $!;
+    chomp( my @timestamps = <FH> );
+    sysseek FH, 0, 0 or die $!;
+    if ( @timestamps == 2 && $time > $timestamps[1] + 3600 or @timestamps == 1 ) {
+        truncate FH, 0 or die $!;
+        print FH join( "\n", $time, $timestamps[0] ), "\n";
+        print "Set-cookie: ContactForm_time=$time\n";
+    } elsif ( @timestamps == 0 ) {
+        truncate FH, 0 or die $!;
+        print FH "$time\n";
+        print "Set-cookie: ContactForm_time=$time\n";
+    } else {
+        print "Set-cookie: ContactForm_time=$timestamps[0]\n";
+    }
+    close FH or die $!;
 }
 
 1;
