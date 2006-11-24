@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.40';
-# $Id: ContactForm.pm,v 1.55 2006/11/21 21:47:54 gunnarh Exp $
+$VERSION = '1.41';
+# $Id: ContactForm.pm,v 1.57 2006/11/24 07:01:10 gunnarh Exp $
 
 =head1 NAME
 
@@ -635,14 +635,16 @@ sub checktimestamp {
     my $cookie;
     if ( !$ENV{HTTP_COOKIE} or !( ($cookie) = $ENV{HTTP_COOKIE} =~ /\bContactForm_time=(\d+)/ ) ) {
         CFdie("Your browser is set to refuse cookies.<br>\n"
-       ."Change that setting to accept at least session cookies, and try again.\n");
+          . "Change that setting to accept at least session cookies, and try again.\n");
     }
     open FH, File::Spec->catfile( $tempdir, 'ContactForm_time' )
       or die "Couldn't open timestamp file: $!";
     chomp( my @timestamps = <FH> );
     close FH or die $!;
-    if ( $cookie + 3600 < time or ! grep $cookie eq $_, @timestamps ) {
-        CFdie("Timeout due to more than 60 minutes of inactivity.\n");
+    if ( $cookie + 7200 < time or ! grep $cookie eq $_, @timestamps ) {
+        settimestamp($tempdir);
+        CFdie("Timeout due to more than an hour of inactivity.<br>\n"
+          . '<p><a href="javascript:history.back(1)">Go back one page</a> and try again.');
     }
 }
 
@@ -662,7 +664,7 @@ sub settimestamp {
     flock FH, LOCK_EX or die $!;
     chomp( my @timestamps = <FH> );
     sysseek FH, 0, 0 or die $!;
-    if ( @timestamps == 2 && $time > $timestamps[1] + 3600 or @timestamps == 1 ) {
+    if ( @timestamps == 2 && $time > $timestamps[0] + 3600 or @timestamps == 1 ) {
         truncate FH, 0 or die $!;
         print FH join( "\n", $time, $timestamps[0] ), "\n";
         print "Set-cookie: ContactForm_time=$time\n";

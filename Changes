@@ -1,5 +1,8 @@
 Version history for CGI::ContactForm.
 
+v1.41 (Nov 24, 2006)
+    Bugfix: Faulty logic in the spam prevention feature corrected.
+
 v1.40 (Nov 21, 2006)
     Feature to make automated submissions by spam robots more
     difficult.
