@@ -1,7 +1,7 @@
 package CGI::ContactForm::MHonArc;
 
 $VERSION = '1.02';
-# $Id: MHonArc.pm,v 1.5 2006/11/21 21:47:15 gunnarh Exp $
+# $Id: MHonArc.pm,v 1.7 2006/12/07 00:39:31 gunnarh Exp $
 
 =head1 NAME
 
@@ -127,7 +127,7 @@ sub getmsgvalues {
           @msg{ qw/fromname fromaddr subject/ } ), "\n";
 
     } else {
-        (my $cookie) = $ENV{HTTP_COOKIE} =~ /\bM2H=([^;]+)/
+        $ENV{HTTP_COOKIE} && ( (my $cookie) = $ENV{HTTP_COOKIE} =~ /\bM2H=([^;]+)/ )
           or CFdie("Your browser is set to refuse cookies.<br>\n"
          ."Change that setting to accept at least session cookies, and try again.\n");
         @msg{ qw/fromname fromaddr subject/ } =

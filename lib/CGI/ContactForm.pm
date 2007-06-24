@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.41';
-# $Id: ContactForm.pm,v 1.57 2006/11/24 07:01:10 gunnarh Exp $
+$VERSION = '1.42';
+# $Id: ContactForm.pm,v 1.62 2007/06/24 02:21:35 gunnarh Exp $
 
 =head1 NAME
 
@@ -56,6 +56,7 @@ C<CGI::ContactForm> takes the following arguments:
     resulttmplpath      (none)
     maxsize             100 (KiB)
     tempdir             (none)
+    spamfilter          '(?i:</a>|\[/url])' (Perl regex)
 
     Additional arguments, intended for forms at non-English sites
     -------------------------------------------------------------
@@ -199,7 +200,7 @@ See the L<Mail::Sender|Mail::Sender> documentation for further guidance.
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
-  Copyright (c) 2003-2006 Gunnar Hjalmarsson
+  Copyright (c) 2003-2007 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
 
 This module is free software; you can redistribute it and/or modify it
@@ -248,6 +249,7 @@ sub contactform {
         checktimestamp( $args->{tempdir} );
         $in = formdata( $args->{maxsize} );
         if (formcheck($in, $args->{subject}, $error) == 0) {
+            checkspamfilter( $in->{message}, $args->{spamfilter} );
             eval { mailsend($args, $in) };
             CFdie( escapeHTML(my $msg = $@) ) if $@;
             return;
@@ -273,6 +275,7 @@ sub arguments {
         resulttmplpath => '',
         maxsize        => 100,
         tempdir        => '',
+        spamfilter     => '(?i:</a>|\[/url])',
         title          => 'Send email to',
         namelabel      => 'Your name:',
         emaillabel     => 'Your email:',
@@ -431,7 +434,7 @@ sub formprint {
     }
 
     # Prevent horizontal scrolling in NS4
-    my $softwrap = ($ENV{HTTP_USER_AGENT} =~ /Mozilla\/[34]/
+    my $softwrap = ($ENV{HTTP_USER_AGENT} and $ENV{HTTP_USER_AGENT} =~ /Mozilla\/[34]/
       and $ENV{HTTP_USER_AGENT} !~ /MSIE|Opera/) ? ' wrap="soft"' : '';
 
     if ( $args->{formtmplpath} ) {
@@ -633,7 +636,7 @@ sub reformat {
 sub checktimestamp {
     my $tempdir = shift || $CGITempFile::TMPDIRECTORY;
     my $cookie;
-    if ( !$ENV{HTTP_COOKIE} or !( ($cookie) = $ENV{HTTP_COOKIE} =~ /\bContactForm_time=(\d+)/ ) ) {
+    unless ( $ENV{HTTP_COOKIE} and ($cookie) = $ENV{HTTP_COOKIE} =~ /\bContactForm_time=(\d+)/ ) {
         CFdie("Your browser is set to refuse cookies.<br>\n"
           . "Change that setting to accept at least session cookies, and try again.\n");
     }
@@ -641,22 +644,23 @@ sub checktimestamp {
       or die "Couldn't open timestamp file: $!";
     chomp( my @timestamps = <FH> );
     close FH or die $!;
-    if ( $cookie + 7200 < time or ! grep $cookie eq $_, @timestamps ) {
-        settimestamp($tempdir);
-        CFdie("Timeout due to more than an hour of inactivity.<br>\n"
+    my $time = time;
+    if ( $cookie + 7200 < $time or ! grep $cookie eq $_, @timestamps ) {
+        settimestamp($tempdir, $time);
+        CFdie("Timeout due to more than an hour of inactivity.\n"
           . '<p><a href="javascript:history.back(1)">Go back one page</a> and try again.');
     }
 }
 
 sub settimestamp {
-    my $tempdir = shift;
+    my ($tempdir, $time) = @_;
     unless ($tempdir) {
         unless (-d $CGITempFile::TMPDIRECTORY and -r _ and -w _ and -x _) {
             CFdie("You need to state a temporary directory via the 'tempdir' argument.\n");
         }
         $tempdir = $CGITempFile::TMPDIRECTORY;
     }
-    my $time = time;
+    $time ||= time;
     umask 0;
 
     sysopen FH, File::Spec->catfile( $tempdir, 'ContactForm_time' ), O_RDWR|O_CREAT
@@ -676,6 +680,15 @@ sub settimestamp {
         print "Set-cookie: ContactForm_time=$timestamps[0]\n";
     }
     close FH or die $!;
+}
+
+sub checkspamfilter {
+    my ($msg, $filter) = @_;
+    if ( $filter and $msg =~ /$filter/ ) {
+        CFdie("The message was trapped in a spam filter and not sent.\n"
+          . "You may want to try again with a modified message body.\n"
+          . '<p><a href="javascript:history.back(1)">Back</a>');
+    }
 }
 
 1;

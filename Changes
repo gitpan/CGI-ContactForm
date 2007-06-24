@@ -1,5 +1,10 @@
 Version history for CGI::ContactForm.
 
+v1.42 (Jun 24, 2007)
+    New argument: 'spamfilter' - allows you to use a Perl regex that
+    is applied to the body of the message, aiming to prevent probable
+    automated spam from being sent.
+
 v1.41 (Nov 24, 2006)
     Bugfix: Faulty logic in the spam prevention feature corrected.
 
