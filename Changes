@@ -1,5 +1,11 @@
 Version history for CGI::ContactForm.
 
+v1.43 (Jan 9, 2009)
+    User-Agent and Referer message headers added to make it easier to
+    prevent automated spam submissions.
+
+    Syntax check of the 'spamfilter' argument.
+
 v1.42 (Jun 24, 2007)
     New argument: 'spamfilter' - allows you to use a Perl regex that
     is applied to the body of the message, aiming to prevent probable

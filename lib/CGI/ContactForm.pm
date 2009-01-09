@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.42';
-# $Id: ContactForm.pm,v 1.62 2007/06/24 02:21:35 gunnarh Exp $
+$VERSION = '1.43';
+# $Id: ContactForm.pm,v 1.66 2009/01/09 21:53:48 gunnarh Exp $
 
 =head1 NAME
 
@@ -200,7 +200,7 @@ See the L<Mail::Sender|Mail::Sender> documentation for further guidance.
 
 =head1 AUTHOR, COPYRIGHT AND LICENSE
 
-  Copyright (c) 2003-2007 Gunnar Hjalmarsson
+  Copyright (c) 2003-2009 Gunnar Hjalmarsson
   http://www.gunnar.cc/cgi-bin/contact.pl
 
 This module is free software; you can redistribute it and/or modify it
@@ -290,12 +290,12 @@ sub arguments {
         sent_to_short  => 'The message was sent to %s.',
         encoding       => 'iso-8859-1',
     );
-    my (%args, $error);
-    {
-        local $SIG{__WARN__} = sub { die $_[0] };
-        eval { %args = (%defaults, @_) };
-        $error .= "$@The module expects a number of key/value pairs.\n" if $@;
+    my $error;
+    if ( @_ % 2 ) {
+        $error .= "Odd number of elements in argument list:\n"
+         . "  The contactform() function expects a number of key/value pairs.\n";
     }
+    my %args = ( %defaults, @_ );
     for (qw/recname recmail/) {
         $error .= "The compulsory argument '$_' is missing.\n" unless $args{$_};
     }
@@ -311,6 +311,15 @@ sub arguments {
     for ('formtmplpath', 'resulttmplpath') {
         if ($args{$_} and !-f $args{$_}) {
             $error .= "Argument '$_': Can't find the file $args{$_}\n";
+        }
+    }
+    {
+        local $SIG{__WARN__} = sub { die $_[0] };
+        eval { $args{spamfilter} = qr($args{spamfilter}) };
+        if ( $@ ) {
+            my $mod_path = $INC{'CGI/ContactForm.pm'};
+            $@ =~ s/ at $mod_path.+//;
+            $error .= "Argument 'spamfilter': " . escapeHTML(my $err = $@);
         }
     }
 
@@ -371,8 +380,10 @@ sub mailsend {
 
     # Extra headers
     my @extras;
-    push @extras, "X-Mailer: CGI::ContactForm $VERSION at $ENV{HTTP_HOST}";
     push @extras, "X-Originating-IP: [$ENV{REMOTE_ADDR}]" if $ENV{REMOTE_ADDR};
+    push @extras, "User-Agent: $ENV{'HTTP_USER_AGENT'}" if $ENV{'HTTP_USER_AGENT'};
+    push @extras, "Referer: $ENV{'HTTP_REFERER'}" if $ENV{'HTTP_REFERER'};
+    push @extras, "X-Mailer: CGI::ContactForm $VERSION at $ENV{HTTP_HOST}";
 
     # Make message format=flowed (RFC 2646)
     $in->{message} = reformat( $in->{message}, { max_length => 66, opt_length => 66 } );
