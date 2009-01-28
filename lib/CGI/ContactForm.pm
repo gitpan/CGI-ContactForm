@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.43';
-# $Id: ContactForm.pm,v 1.66 2009/01/09 21:53:48 gunnarh Exp $
+$VERSION = '1.44';
+# $Id: ContactForm.pm,v 1.69 2009/01/28 22:12:38 gunnarh Exp $
 
 =head1 NAME
 
@@ -55,8 +55,9 @@ C<CGI::ContactForm> takes the following arguments:
     formtmplpath        (none)
     resulttmplpath      (none)
     maxsize             100 (KiB)
+    maxperhour          5 (messages per hour per host)
     tempdir             (none)
-    spamfilter          '(?i:</a>|\[/url])' (Perl regex)
+    spamfilter          '(?is:</a>|\[/url]|https?:/(?:.+https?:/){3})' (Perl regex)
 
     Additional arguments, intended for forms at non-English sites
     -------------------------------------------------------------
@@ -94,6 +95,33 @@ use of one or two templates. The enclosed example templates
 C<ContactForm_form.tmpl> and C<ContactForm_result.tmpl> can be activated via
 the C<formtmplpath> respective C<resulttmplpath> arguments, and used as a
 starting point for a customized markup.
+
+=head2 Spam prevention
+
+Behind the scenes C<CGI::ContactForm> performs a few checks aiming to complicate
+and/or discourage abuse in the form of submitted spam messages.
+
+=over 4
+
+=item *
+
+The number of messages that can be sent from the same host is restricted. The
+default is 5 messages per hour.
+
+=item *
+
+A customizable spamfilter is applied to the body of the message. By default it
+allows max 3 URLs that start with C<http://> or C<https://>, and it rejects
+submissions with C<E<lt>/aE<gt>> or C<[/url]> in the message body.
+
+=item *
+
+When sending a message, the request must include a cookie.
+
+=back
+
+The thought is that normal use, i.e. establishing contact with somebody,
+should typically not be affected by those checks.
 
 =head1 INSTALLATION
 
@@ -244,18 +272,22 @@ BEGIN {
 sub contactform {
     local $^W = 1;  # enables warnings
     my ($error, $in) = {};
+    my $time = time;
+    my $host = $ENV{'REMOTE_ADDR'} or die "REMOTE_ADDR not set\n";
+    umask 0;
     my $args = &arguments;
     if ($ENV{REQUEST_METHOD} eq 'POST') {
-        checktimestamp( $args->{tempdir} );
+        checktimestamp( $args->{tempdir}, $time );
         $in = formdata( $args->{maxsize} );
         if (formcheck($in, $args->{subject}, $error) == 0) {
             checkspamfilter( $in->{message}, $args->{spamfilter} );
-            eval { mailsend($args, $in) };
+            checkmaxperhour($args, $time, $host);
+            eval { mailsend($args, $in, $host) };
             CFdie( escapeHTML(my $msg = $@) ) if $@;
             return;
         }
     } else {
-        settimestamp( $args->{tempdir} );
+        settimestamp( $args->{tempdir}, $time );
     }
     formprint($args, $in, $error);
 }
@@ -274,8 +306,9 @@ sub arguments {
         formtmplpath   => '',
         resulttmplpath => '',
         maxsize        => 100,
+        maxperhour     => 5,
         tempdir        => '',
-        spamfilter     => '(?i:</a>|\[/url])',
+        spamfilter     => '(?is:</a>|\[/url]|https?:/(?:.+https?:/){3})',
         title          => 'Send email to',
         namelabel      => 'Your name:',
         emaillabel     => 'Your email:',
@@ -305,7 +338,11 @@ sub arguments {
     if ($args{recmail} and emailsyntax($args{recmail})) {
         $error .= "'$args{recmail}' is not a valid email address.\n";
     }
-    if ($args{tempdir} and !(-d $args{tempdir} and -w _ and -x _)) {
+    unless ($args{tempdir}) {
+        unless (-d $CGITempFile::TMPDIRECTORY and -w _ and -x _) {
+            $error .= "You need to state a temporary directory via the 'tempdir' argument.\n";
+        }
+    } elsif (!(-d $args{tempdir} and -w _ and -x _)) {
         $error .= "'$args{tempdir}' is not a writable directory.\n";
     }
     for ('formtmplpath', 'resulttmplpath') {
@@ -376,11 +413,10 @@ sub emailsyntax {
 }
 
 sub mailsend {
-    my ($args, $in) = @_;
+    my ($args, $in, $host) = @_;
 
     # Extra headers
-    my @extras;
-    push @extras, "X-Originating-IP: [$ENV{REMOTE_ADDR}]" if $ENV{REMOTE_ADDR};
+    my @extras = "X-Originating-IP: [$host]";
     push @extras, "User-Agent: $ENV{'HTTP_USER_AGENT'}" if $ENV{'HTTP_USER_AGENT'};
     push @extras, "Referer: $ENV{'HTTP_REFERER'}" if $ENV{'HTTP_REFERER'};
     push @extras, "X-Mailer: CGI::ContactForm $VERSION at $ENV{HTTP_HOST}";
@@ -645,7 +681,8 @@ sub reformat {
 }
 
 sub checktimestamp {
-    my $tempdir = shift || $CGITempFile::TMPDIRECTORY;
+    my ($tempdir, $time) = @_;
+    $tempdir ||= $CGITempFile::TMPDIRECTORY;
     my $cookie;
     unless ( $ENV{HTTP_COOKIE} and ($cookie) = $ENV{HTTP_COOKIE} =~ /\bContactForm_time=(\d+)/ ) {
         CFdie("Your browser is set to refuse cookies.<br>\n"
@@ -655,7 +692,6 @@ sub checktimestamp {
       or die "Couldn't open timestamp file: $!";
     chomp( my @timestamps = <FH> );
     close FH or die $!;
-    my $time = time;
     if ( $cookie + 7200 < $time or ! grep $cookie eq $_, @timestamps ) {
         settimestamp($tempdir, $time);
         CFdie("Timeout due to more than an hour of inactivity.\n"
@@ -665,14 +701,7 @@ sub checktimestamp {
 
 sub settimestamp {
     my ($tempdir, $time) = @_;
-    unless ($tempdir) {
-        unless (-d $CGITempFile::TMPDIRECTORY and -r _ and -w _ and -x _) {
-            CFdie("You need to state a temporary directory via the 'tempdir' argument.\n");
-        }
-        $tempdir = $CGITempFile::TMPDIRECTORY;
-    }
-    $time ||= time;
-    umask 0;
+    $tempdir ||= $CGITempFile::TMPDIRECTORY;
 
     sysopen FH, File::Spec->catfile( $tempdir, 'ContactForm_time' ), O_RDWR|O_CREAT
       or die "Couldn't open timestamp file: $!";
@@ -699,6 +728,32 @@ sub checkspamfilter {
         CFdie("The message was trapped in a spam filter and not sent.\n"
           . "You may want to try again with a modified message body.\n"
           . '<p><a href="javascript:history.back(1)">Back</a>');
+    }
+}
+
+sub checkmaxperhour {
+    my ($args, $time, $host) = @_;
+    my $tempdir = $args->{tempdir} || $CGITempFile::TMPDIRECTORY;
+    my (@senders, %senders);
+
+    sysopen FH, File::Spec->catfile( $tempdir, 'ContactForm_sent' ), O_RDWR|O_CREAT
+      or die "Couldn't open request file: $!";
+    flock FH, LOCK_EX or die $!;
+    while ( <FH> ) {
+        my ($timestamp, $ip) = /^(\d+)\t(.+)/;
+        next if $timestamp < $time - 3600;
+        push @senders, $_;
+        $senders{$ip}++;
+    }
+    push @senders, "$time\t$host\n";
+    $senders{$host}++;
+    seek FH, 0, 0 or die $!;
+    truncate FH, 0 or die $!;
+    print FH @senders;
+    close FH or die $!;
+
+    if ( $senders{$host} > $args->{maxperhour} ) {
+        CFdie('Too many send attempts from the same host. You may want to try later.');
     }
 }
 

@@ -1,5 +1,12 @@
 Version history for CGI::ContactForm.
 
+v1.44 (Jan 28, 2009)
+    Another measure to prevent abuse: Only a limited number of
+    messages per hour (5 by default) are allowed to be sent from
+    the same host.
+
+    Default spamfilter permits max three URLs.
+
 v1.43 (Jan 9, 2009)
     User-Agent and Referer message headers added to make it easier to
     prevent automated spam submissions.
