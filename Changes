@@ -1,5 +1,13 @@
 Version history for CGI::ContactForm.
 
+v1.50 (Mar 3, 2009)
+    MIME encoding (quoted-printable) of bytes representing non-ASCII
+    characters.
+
+    Max line length (66) refers to characters, not bytes. This feature
+    only works if a recent version of the Encode module has been
+    installed.
+
 v1.44 (Jan 28, 2009)
     Another measure to prevent abuse: Only a limited number of
     messages per hour (5 by default) are allowed to be sent from

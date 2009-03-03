@@ -1,7 +1,7 @@
 package CGI::ContactForm;
 
-$VERSION = '1.44';
-# $Id: ContactForm.pm,v 1.69 2009/01/28 22:12:38 gunnarh Exp $
+$VERSION = '1.50';
+# $Id: ContactForm.pm,v 1.76 2009/03/03 22:46:53 gunnarh Exp $
 
 =head1 NAME
 
@@ -73,7 +73,7 @@ C<CGI::ContactForm> takes the following arguments:
     thanks              'Thanks for your message!'
     sent_to             'The message was sent to %s with a copy to %s.'
     sent_to_short       'The message was sent to %s.'
-    encoding            'iso-8859-1'
+    encoding            'ISO-8859-1'
 
 =head2 Customization
 
@@ -321,7 +321,7 @@ sub arguments {
         thanks         => 'Thanks for your message!',
         sent_to        => 'The message was sent to %s with a copy to %s.',
         sent_to_short  => 'The message was sent to %s.',
-        encoding       => 'iso-8859-1',
+        encoding       => 'ISO-8859-1',
     );
     my $error;
     if ( @_ % 2 ) {
@@ -417,13 +417,22 @@ sub mailsend {
 
     # Extra headers
     my @extras = "X-Originating-IP: [$host]";
-    push @extras, "User-Agent: $ENV{'HTTP_USER_AGENT'}" if $ENV{'HTTP_USER_AGENT'};
+    if ( my $agent = $ENV{'HTTP_USER_AGENT'} ) {
+        my @lines;
+        while ( $agent =~ /(.{1,66})(?:\s+|$)/g ) {
+            push @lines, $1;
+        }
+        push @extras, 'User-Agent: ' . join("\r\n\t", @lines);
+    }
     push @extras, "Referer: $ENV{'HTTP_REFERER'}" if $ENV{'HTTP_REFERER'};
     push @extras, "X-Mailer: CGI::ContactForm $VERSION at $ENV{HTTP_HOST}";
 
     # Make message format=flowed (RFC 2646)
+    eval "use Encode 2.23 ()";
+    my $convert = $@ ? 0 : 1;
+    $in->{message} = Encode::decode( $args->{encoding}, $in->{message} ) if $convert;
     $in->{message} = reformat( $in->{message}, { max_length => 66, opt_length => 66 } );
-    push @extras, 'MIME-Version: 1.0';
+    $in->{message} = Encode::encode( $args->{encoding}, $in->{message} ) if $convert;
     push @extras, "Content-type: text/plain; charset=$args->{encoding}; format=flowed";
 
     # Send message
@@ -431,11 +440,12 @@ sub mailsend {
     $Mail::Sender::SITE_HEADERS = join "\r\n", @extras;
     ref (new Mail::Sender -> MailMsg( {
         smtp      => $args->{smtp},
+        encoding  => ( $in->{message} =~ /[[:^ascii:]]/ ? 'quoted-printable' : '7bit' ),
         from      => ( $args->{bouncetosender} ? $in->{email} : $args->{recmail} ),
-        fake_from => namefix( $in->{name} ) . " <$in->{email}>",
-        to        => namefix( $args->{recname} ) . " <$args->{recmail}>",
+        fake_from => namefix( $in->{name}, $args->{encoding} ) . " <$in->{email}>",
+        to        => namefix( $args->{recname}, $args->{encoding} ) . " <$args->{recmail}>",
         bcc       => ( $args->{nocopy} ? '' : $in->{email} ),
-        subject   => $in->{subject},
+        subject   => mimeencode( $in->{subject}, $args->{encoding} ),
         msg       => $in->{message},
     } )) or die "Cannot send mail. $Mail::Sender::Error\n";
 
@@ -580,12 +590,26 @@ sub templateprint {
 }
 
 sub namefix {
-    my $name = shift;
+    my $name = $_[0];
+    if ($name =~ /[[:^ascii:]]/) {
+        return &mimeencode;
+    }
     if ($name =~ /[^ \w]/) {
         $name =~ tr/"/'/;
         $name = qq{"$name"};
     }
     $name;
+}
+
+sub mimeencode {
+    my ($str, $enc) = @_;
+    return $str unless $str =~ /[[:^ascii:]]/;
+    my @parts;
+    while ( $str =~ /(.{1,40}.*?(?:\s|$))/g ) {
+        my $part = $1;
+        push @parts, MIME::QuotedPrint::encode($part, '');
+    }
+    join "\r\n\t", map { "=?$enc?Q?$_?=" } @parts;
 }
 
 sub reformat {

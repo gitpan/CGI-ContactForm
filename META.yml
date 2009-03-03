@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                CGI-ContactForm
-version:             1.44
+version:             1.50
 abstract:            Generate a web contact form
 license:             ~
 author:              
